@@ -237,7 +237,7 @@ export default function Home() {
     await supabase.from('landings').update({ pos_x: x, pos_y: y }).eq('id', id)
   }
 
-  // Drag handlers
+  // Drag handlers - positions stored as percentages of image size
   function handleMouseDown(e, id) {
     e.stopPropagation()
     const landing = landings.find(l => l.id === id)
@@ -245,18 +245,18 @@ export default function Home() {
     const rect = containerRef.current.getBoundingClientRect()
     setDragging(id)
     setDragOffset({
-      x: (e.clientX - rect.left) / zoom - landing.pos_x,
-      y: (e.clientY - rect.top) / zoom - landing.pos_y,
+      x: ((e.clientX - rect.left) / rect.width) * 100 - landing.pos_x,
+      y: ((e.clientY - rect.top) / rect.height) * 100 - landing.pos_y,
     })
   }
 
   const handleMouseMove = useCallback((e) => {
     if (!dragging || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const x = Math.max(0, (e.clientX - rect.left) / zoom - dragOffset.x)
-    const y = Math.max(0, (e.clientY - rect.top) / zoom - dragOffset.y)
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
     setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: x, pos_y: y } : l))
-  }, [dragging, dragOffset, zoom])
+  }, [dragging, dragOffset])
 
   const handleMouseUp = useCallback(() => {
     if (dragging) {
@@ -286,8 +286,8 @@ export default function Home() {
     const touch = e.touches[0]
     setDragging(id)
     setDragOffset({
-      x: (touch.clientX - rect.left) / zoom - landing.pos_x,
-      y: (touch.clientY - rect.top) / zoom - landing.pos_y,
+      x: ((touch.clientX - rect.left) / rect.width) * 100 - landing.pos_x,
+      y: ((touch.clientY - rect.top) / rect.height) * 100 - landing.pos_y,
     })
   }
 
@@ -296,10 +296,10 @@ export default function Home() {
     e.preventDefault()
     const rect = containerRef.current.getBoundingClientRect()
     const touch = e.touches[0]
-    const x = Math.max(0, (touch.clientX - rect.left) / zoom - dragOffset.x)
-    const y = Math.max(0, (touch.clientY - rect.top) / zoom - dragOffset.y)
+    const x = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
+    const y = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
     setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: x, pos_y: y } : l))
-  }, [dragging, dragOffset, zoom])
+  }, [dragging, dragOffset])
 
   const handleTouchEnd = useCallback(() => {
     if (dragging) {
@@ -448,10 +448,10 @@ export default function Home() {
 
               {/* Canvas */}
               <div className="flex-1 overflow-auto" style={{ background: '#0F172A' }}>
-                <div ref={containerRef} style={{ position: 'relative', minWidth: '1400px', minHeight: '1000px', transform: `scale(${zoom})`, transformOrigin: 'top left', cursor: dragging ? 'grabbing' : 'default' }}>
-                  {bgImage && <img src={bgImage} alt="Drawing" style={{ width: '100%', height: 'auto', display: 'block', pointerEvents: 'none', opacity: 0.85 }} />}
+                <div ref={containerRef} style={{ position: 'relative', display: 'inline-block', cursor: dragging ? 'grabbing' : 'default', transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+                  {bgImage && <img src={bgImage} alt="Drawing" style={{ display: 'block', pointerEvents: 'none', opacity: 0.85, maxWidth: 'none' }} />}
                   {!bgImage && (
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-center p-10" style={{ color: '#475569' }}>
+                    <div style={{ width: '1400px', height: '1000px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '14px', textAlign: 'center', padding: '40px' }}>
                       Upload your stairwell drawing using the button above
                     </div>
                   )}
@@ -465,14 +465,17 @@ export default function Home() {
                         onTouchStart={e => handleTouchStart(e, l.id)}
                         onClick={e => { e.stopPropagation(); setSelected(isSel ? null : l.id) }}
                         style={{
-                          position: 'absolute', left: `${l.pos_x}px`, top: `${l.pos_y}px`,
-                          width: '36px', height: '36px', borderRadius: '50%',
-                          background: colors.bg, border: `3px solid ${isSel ? '#fff' : colors.border}`,
+                          position: 'absolute',
+                          left: `${l.pos_x}%`,
+                          top: `${l.pos_y}%`,
+                          transform: 'translate(-50%, -50%)',
+                          width: `${36 / zoom}px`, height: `${36 / zoom}px`, borderRadius: '50%',
+                          background: colors.bg, border: `${3 / zoom}px solid ${isSel ? '#fff' : colors.border}`,
                           boxShadow: isSel ? '0 0 0 3px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: dragging === l.id ? 'grabbing' : 'grab', userSelect: 'none',
                           zIndex: dragging === l.id ? 1000 : isSel ? 100 : 10,
-                          fontSize: '13px', fontWeight: '800', color: colors.text,
+                          fontSize: `${13 / zoom}px`, fontWeight: '800', color: colors.text,
                           transition: dragging === l.id ? 'none' : 'box-shadow 0.15s',
                         }}
                         title={`Landing ${l.number} — ${colors.label}`}
