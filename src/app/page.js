@@ -639,35 +639,51 @@ function ActivityView({ logs, theme }) {
 }
 
 // ─── CHAT VIEW ──────────────────────────────────────────────────
-function ChatView({ messages, user, theme, onSend }) {
+function ChatView({ messages, user, theme, onSend, registeredUsers }) {
   const B = THEMES[theme]
   const [msg, setMsg] = useState('')
-  const [filterCompany, setFilterCompany] = useState('All')
-  const [filterPerson, setFilterPerson] = useState('All')
+  const [activeChannel, setActiveChannel] = useState('team')
   const chatEndRef = useRef(null)
-  const companies = ['All', ...COMPANIES]
 
-  // Get unique people from messages
-  const people = ['All', ...Array.from(new Set(messages.map(m => m.user_name))).sort()]
+  // Get other users (not me)
+  const otherUsers = registeredUsers.filter(u => u.name !== user.name)
 
-  const filtered = messages.filter(m => {
-    if (filterCompany !== 'All' && m.company !== filterCompany) return false
-    if (filterPerson !== 'All' && m.user_name !== filterPerson) return false
-    return true
+  // Filter messages for current channel
+  const channelMessages = messages.filter(m => {
+    if (activeChannel === 'team') {
+      return m.chat_type === 'team' || !m.chat_type
+    }
+    // DM: show messages between me and selected person
+    return m.chat_type === 'dm' && (
+      (m.user_name === user.name && m.recipient_name === activeChannel) ||
+      (m.user_name === activeChannel && m.recipient_name === user.name)
+    )
   })
+
+  // Count unread-style indicator (messages from others in each DM)
+  const getDmCount = (personName) => {
+    return messages.filter(m =>
+      m.chat_type === 'dm' && m.user_name === personName && m.recipient_name === user.name
+    ).length
+  }
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [filtered.length])
+  }, [channelMessages.length, activeChannel])
 
   const handleSend = async () => {
     const text = msg.trim()
     if (!text) return
-    await supabase.from('chat_messages').insert({
+    const insert = {
       user_name: user.name,
       company: user.company,
       message: text,
-    })
+      chat_type: activeChannel === 'team' ? 'team' : 'dm',
+    }
+    if (activeChannel !== 'team') {
+      insert.recipient_name = activeChannel
+    }
+    await supabase.from('chat_messages').insert(insert)
     setMsg('')
     onSend()
   }
@@ -679,11 +695,12 @@ function ChatView({ messages, user, theme, onSend }) {
   }
 
   const exportCSV = () => {
+    const label = activeChannel === 'team' ? 'Team Chat' : `DM with ${activeChannel}`
     const header = 'Timestamp,User,Company,Message\n'
-    const rows = filtered.map(m => `"${new Date(m.created_at).toLocaleString('en-NZ')}","${m.user_name}","${m.company}","${m.message.replace(/"/g, '""')}"`).join('\n')
+    const rows = channelMessages.map(m => `"${new Date(m.created_at).toLocaleString('en-NZ')}","${m.user_name}","${m.company}","${m.message.replace(/"/g, '""')}"`).join('\n')
     const blob = new Blob([header + rows], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `moxy_chat_${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    const a = document.createElement('a'); a.href = url; a.download = `moxy_chat_${activeChannel === 'team' ? 'team' : activeChannel}_${new Date().toISOString().split('T')[0]}.csv`; a.click()
   }
 
   const exportPDF = () => { window.print() }
@@ -699,105 +716,154 @@ function ChatView({ messages, user, theme, onSend }) {
     return groups
   }
 
-  const grouped = groupByDate(filtered)
+  const grouped = groupByDate(channelMessages)
+  const channelLabel = activeChannel === 'team' ? 'Team Chat' : `DM — ${activeChannel}`
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Filters bar */}
-      <div className="no-print" style={{ padding: '10px 20px', display: 'flex', gap: 10, alignItems: 'center', background: B.card, borderBottom: `1px solid ${B.cardBorder}` }}>
-        <label style={{ color: B.textMuted, fontSize: 12, fontWeight: 600 }}>Company:</label>
-        <select value={filterCompany} onChange={e => { setFilterCompany(e.target.value); setFilterPerson('All') }} style={{ padding: '5px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12 }}>
-          {companies.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <label style={{ color: B.textMuted, fontSize: 12, fontWeight: 600, marginLeft: 8 }}>Person:</label>
-        <select value={filterPerson} onChange={e => setFilterPerson(e.target.value)} style={{ padding: '5px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12 }}>
-          {people.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <span style={{ color: B.textMuted, fontSize: 11 }}>({filtered.length} messages)</span>
-        <div style={{ flex: 1 }} />
-        <button onClick={exportPDF} style={{ padding: '5px 12px', background: B.dark, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄 PDF</button>
-        <button onClick={exportCSV} style={{ padding: '5px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📊 CSV</button>
-      </div>
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* Sidebar */}
+      <div className="no-print" style={{ width: 220, minWidth: 220, background: B.card, borderRight: `1px solid ${B.cardBorder}`, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <div style={{ padding: '12px 14px', borderBottom: `1px solid ${B.cardBorder}` }}>
+          <span style={{ color: B.textMuted, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Channels</span>
+        </div>
 
-      {/* Print header */}
-      <div className="print-only" style={{ display: 'none', marginBottom: 16, padding: '0 20px' }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#000' }}>Moxy Hotel — Site Chat</h1>
-        <p style={{ fontSize: 12, color: '#666', margin: '4px 0 0 0' }}>
-          City Scaffold Ltd — {filterCompany !== 'All' ? `Company: ${filterCompany}` : 'All companies'}{filterPerson !== 'All' ? ` — Person: ${filterPerson}` : ''} — Printed {new Date().toLocaleString('en-NZ')}
-        </p>
-      </div>
+        {/* Team chat */}
+        <button onClick={() => setActiveChannel('team')} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%',
+          background: activeChannel === 'team' ? (theme === 'dark' ? 'rgba(74,154,181,0.15)' : 'rgba(74,154,181,0.1)') : 'transparent',
+          borderLeft: activeChannel === 'team' ? `3px solid ${B.primary}` : '3px solid transparent',
+        }}>
+          <span style={{ fontSize: 16 }}>👥</span>
+          <div>
+            <div style={{ color: activeChannel === 'team' ? B.text : B.textMuted, fontSize: 13, fontWeight: activeChannel === 'team' ? 700 : 500 }}>Team Chat</div>
+            <div style={{ color: B.textMuted, fontSize: 10 }}>Everyone</div>
+          </div>
+        </button>
 
-      {/* Messages area */}
-      <div className="no-print" style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', color: B.textMuted, marginTop: 60, fontSize: 14 }}>No messages yet. Start the conversation!</div>
+        <div style={{ padding: '12px 14px 6px', borderTop: `1px solid ${B.cardBorder}` }}>
+          <span style={{ color: B.textMuted, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Direct Messages</span>
+        </div>
+
+        {otherUsers.map(u => {
+          const dmCount = getDmCount(u.name)
+          const companyColor = COMPANY_COLORS[u.company] || B.textMuted
+          const isActive = activeChannel === u.name
+          return (
+            <button key={u.name} onClick={() => setActiveChannel(u.name)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%',
+              background: isActive ? (theme === 'dark' ? 'rgba(74,154,181,0.15)' : 'rgba(74,154,181,0.1)') : 'transparent',
+              borderLeft: isActive ? `3px solid ${B.primary}` : '3px solid transparent',
+            }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: companyColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                {u.name.charAt(0).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: isActive ? B.text : B.textMuted, fontSize: 12, fontWeight: isActive ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</div>
+                <div style={{ color: companyColor, fontSize: 10 }}>{u.company}</div>
+              </div>
+              {dmCount > 0 && (
+                <span style={{ background: companyColor, color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10, flexShrink: 0 }}>{dmCount}</span>
+              )}
+            </button>
+          )
+        })}
+
+        {otherUsers.length === 0 && (
+          <div style={{ padding: '12px 14px', color: B.textMuted, fontSize: 11 }}>No other users registered yet</div>
         )}
-        {Object.entries(grouped).map(([date, msgs]) => (
-          <div key={date}>
-            <div style={{ textAlign: 'center', margin: '16px 0 12px', position: 'relative' }}>
-              <span style={{ background: B.bg, padding: '0 12px', color: B.textMuted, fontSize: 11, fontWeight: 600, position: 'relative', zIndex: 1 }}>{date}</span>
-              <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: B.cardBorder, zIndex: 0 }} />
+      </div>
+
+      {/* Chat area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Chat header bar */}
+        <div className="no-print" style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 10, background: B.card, borderBottom: `1px solid ${B.cardBorder}` }}>
+          <span style={{ color: B.text, fontWeight: 700, fontSize: 14 }}>{channelLabel}</span>
+          <span style={{ color: B.textMuted, fontSize: 11 }}>({channelMessages.length} messages)</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={exportPDF} style={{ padding: '5px 12px', background: B.dark, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄 PDF</button>
+          <button onClick={exportCSV} style={{ padding: '5px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📊 CSV</button>
+        </div>
+
+        {/* Print header */}
+        <div className="print-only" style={{ display: 'none', marginBottom: 16, padding: '0 20px' }}>
+          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#000' }}>Moxy Hotel — {channelLabel}</h1>
+          <p style={{ fontSize: 12, color: '#666', margin: '4px 0 0 0' }}>City Scaffold Ltd — Printed {new Date().toLocaleString('en-NZ')}</p>
+        </div>
+
+        {/* Messages */}
+        <div className="no-print" style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+          {channelMessages.length === 0 && (
+            <div style={{ textAlign: 'center', color: B.textMuted, marginTop: 60, fontSize: 14 }}>
+              {activeChannel === 'team' ? 'No messages yet. Start the team conversation!' : `No messages with ${activeChannel} yet.`}
             </div>
-            {msgs.map(m => {
-              const isMe = m.user_name === user.name
-              const companyColor = COMPANY_COLORS[m.company] || B.textMuted
-              return (
-                <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-                  <div style={{
-                    maxWidth: '70%', padding: '8px 12px', borderRadius: 10,
-                    background: isMe ? B.primary : B.card,
-                    border: isMe ? 'none' : `1px solid ${B.cardBorder}`,
-                    borderBottomRightRadius: isMe ? 2 : 10,
-                    borderBottomLeftRadius: isMe ? 10 : 2,
-                  }}>
-                    {!isMe && (
-                      <div style={{ fontSize: 11, fontWeight: 700, color: companyColor, marginBottom: 2 }}>{m.user_name} <span style={{ fontWeight: 400, opacity: 0.7 }}>({m.company})</span></div>
-                    )}
-                    <div style={{ fontSize: 13, color: isMe ? '#fff' : B.text, lineHeight: 1.4, wordBreak: 'break-word' }}>{m.message}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                      <span style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : B.textMuted }}>
-                        {new Date(m.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {isAdmin(user) && !isMe && (
-                        <button onClick={() => handleDelete(m.id)} style={{ background: 'none', border: 'none', color: isMe ? 'rgba(255,255,255,0.5)' : B.red, cursor: 'pointer', fontSize: 9, padding: 0, opacity: 0.6 }} title="Delete message">✕</button>
+          )}
+          {Object.entries(grouped).map(([date, msgs]) => (
+            <div key={date}>
+              <div style={{ textAlign: 'center', margin: '16px 0 12px', position: 'relative' }}>
+                <span style={{ background: B.bg, padding: '0 12px', color: B.textMuted, fontSize: 11, fontWeight: 600, position: 'relative', zIndex: 1 }}>{date}</span>
+                <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: B.cardBorder, zIndex: 0 }} />
+              </div>
+              {msgs.map(m => {
+                const isMe = m.user_name === user.name
+                const companyColor = COMPANY_COLORS[m.company] || B.textMuted
+                return (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                    <div style={{
+                      maxWidth: '70%', padding: '8px 12px', borderRadius: 10,
+                      background: isMe ? B.primary : B.card,
+                      border: isMe ? 'none' : `1px solid ${B.cardBorder}`,
+                      borderBottomRightRadius: isMe ? 2 : 10,
+                      borderBottomLeftRadius: isMe ? 10 : 2,
+                    }}>
+                      {!isMe && (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: companyColor, marginBottom: 2 }}>{m.user_name} <span style={{ fontWeight: 400, opacity: 0.7 }}>({m.company})</span></div>
                       )}
+                      <div style={{ fontSize: 13, color: isMe ? '#fff' : B.text, lineHeight: 1.4, wordBreak: 'break-word' }}>{m.message}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <span style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : B.textMuted }}>
+                          {new Date(m.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {isAdmin(user) && !isMe && (
+                          <button onClick={() => handleDelete(m.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 9, padding: 0, opacity: 0.6 }} title="Delete message">✕</button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        ))}
-        <div ref={chatEndRef} />
-      </div>
-
-      {/* Print messages */}
-      <table className="print-table print-only" style={{ display: 'none', margin: '0 20px' }}>
-        <thead>
-          <tr><th>Time</th><th>User</th><th>Company</th><th>Message</th></tr>
-        </thead>
-        <tbody>
-          {filtered.map(m => (
-            <tr key={m.id}>
-              <td>{new Date(m.created_at).toLocaleString('en-NZ')}</td>
-              <td>{m.user_name}</td>
-              <td>{m.company}</td>
-              <td>{m.message}</td>
-            </tr>
+                )
+              })}
+            </div>
           ))}
-        </tbody>
-      </table>
+          <div ref={chatEndRef} />
+        </div>
 
-      {/* Message input */}
-      <div className="no-print" style={{ padding: '12px 20px', background: B.card, borderTop: `1px solid ${B.cardBorder}`, display: 'flex', gap: 10 }}>
-        <input
-          value={msg}
-          onChange={e => setMsg(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-          placeholder="Type a message..."
-          style={{ flex: 1, padding: '10px 14px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 8, color: B.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-        />
-        <button onClick={handleSend} style={{ padding: '10px 24px', background: B.primary, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Send</button>
+        {/* Print messages */}
+        <table className="print-table print-only" style={{ display: 'none', margin: '0 20px' }}>
+          <thead>
+            <tr><th>Time</th><th>From</th><th>Company</th><th>Message</th></tr>
+          </thead>
+          <tbody>
+            {channelMessages.map(m => (
+              <tr key={m.id}>
+                <td>{new Date(m.created_at).toLocaleString('en-NZ')}</td>
+                <td>{m.user_name}</td>
+                <td>{m.company}</td>
+                <td>{m.message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Message input */}
+        <div className="no-print" style={{ padding: '12px 20px', background: B.card, borderTop: `1px solid ${B.cardBorder}`, display: 'flex', gap: 10 }}>
+          <input
+            value={msg}
+            onChange={e => setMsg(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+            placeholder={activeChannel === 'team' ? 'Message team...' : `Message ${activeChannel}...`}
+            style={{ flex: 1, padding: '10px 14px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 8, color: B.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+          />
+          <button onClick={handleSend} style={{ padding: '10px 24px', background: B.primary, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Send</button>
+        </div>
       </div>
     </div>
   )
@@ -811,6 +877,7 @@ export default function Home() {
   const [logs, setLogs] = useState([])
   const [notes, setNotes] = useState([])
   const [chatMessages, setChatMessages] = useState([])
+  const [registeredUsers, setRegisteredUsers] = useState([])
   const [activeTab, setActiveTab] = useState('Diagram')
   const [drawingUrl, setDrawingUrl] = useState('')
   const [theme, setTheme] = useState('dark')
@@ -832,10 +899,11 @@ export default function Home() {
   const loadLogs = async () => { const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200); if (data) setLogs(data) }
   const loadNotes = async () => { const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: true }); if (data) setNotes(data) }
   const loadChat = async () => { const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }); if (data) setChatMessages(data) }
+  const loadUsers = async () => { const { data } = await supabase.from('users').select('name, company').order('name'); if (data) setRegisteredUsers(data) }
 
   useEffect(() => {
     if (!user) return
-    loadLandings(); loadLobbySlabs(); loadLogs(); loadNotes(); loadChat()
+    loadLandings(); loadLobbySlabs(); loadLogs(); loadNotes(); loadChat(); loadUsers()
     const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
     const lobbySub = supabase.channel('lobby-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_slabs' }, () => loadLobbySlabs()).subscribe()
     const activitySub = supabase.channel('activity-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadLogs()).subscribe()
@@ -877,7 +945,7 @@ export default function Home() {
 
       {/* CHAT */}
       {activeTab === 'Chat' && (
-        <ChatView messages={chatMessages} user={user} theme={theme} onSend={loadChat} />
+        <ChatView messages={chatMessages} user={user} theme={theme} onSend={loadChat} registeredUsers={registeredUsers} />
       )}
     </div>
   )
