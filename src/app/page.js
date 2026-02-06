@@ -584,6 +584,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
+                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0 }}>Date/Time:</span>
                       <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed}
                         style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
                     </div>
