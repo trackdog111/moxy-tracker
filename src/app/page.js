@@ -189,7 +189,9 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
   const steel = items.filter(l => l.steel_complete && !l.pour_complete).length
   const poured = items.filter(l => l.pour_complete).length
   const notStarted = items.length - shored - steel - poured
-  const tabs = tracker === 'landings' ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Table', 'Activity', 'Chat']
+  const tabs = tracker === 'landings'
+    ? (isAdmin(user) ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Chat'])
+    : (isAdmin(user) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
 
   return (
     <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, padding: '0 16px', display: 'flex', alignItems: 'center', minHeight: 56, gap: 12, position: 'sticky', top: 0, zIndex: 100, flexWrap: 'wrap' }}>
@@ -558,11 +560,26 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
 }
 
 // ─── ACTIVITY VIEW ──────────────────────────────────────────────
-function ActivityView({ logs, theme }) {
+function ActivityView({ logs, theme, onDelete }) {
   const B = THEMES[theme]
   const [filter, setFilter] = useState('All')
   const companies = ['All', ...COMPANIES]
   const filtered = filter === 'All' ? logs : logs.filter(l => l.company === filter)
+
+  const handleDelete = async (id) => {
+    await supabase.from('activity_log').delete().eq('id', id)
+    onDelete()
+  }
+
+  const handleClearAll = async () => {
+    if (!confirm('Delete ALL activity logs? This cannot be undone.')) return
+    if (filter === 'All') {
+      await supabase.from('activity_log').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    } else {
+      await supabase.from('activity_log').delete().eq('company', filter)
+    }
+    onDelete()
+  }
 
   const exportCSV = () => {
     const header = 'Timestamp,User,Company,Action,Details\n'
@@ -592,19 +609,20 @@ function ActivityView({ logs, theme }) {
         <div style={{ flex: 1 }} />
         <button onClick={exportPDF} style={{ padding: '6px 14px', background: B.dark, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📄 Export PDF</button>
         <button onClick={exportCSV} style={{ padding: '6px 14px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📊 Export CSV</button>
+        <button onClick={handleClearAll} style={{ padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑️ Clear {filter === 'All' ? 'All' : filter}</button>
       </div>
 
       {/* Screen table */}
       <table className="no-print" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-            {['Time', 'User', 'Company', 'Action', 'Details'].map(h => (
+            {['Time', 'User', 'Company', 'Action', 'Details', ''].map(h => (
               <th key={h} style={{ color: B.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 8px', textAlign: 'left' }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {filtered.length === 0 && <tr><td colSpan={5} style={{ padding: 20, textAlign: 'center', color: B.textMuted }}>No activity yet</td></tr>}
+          {filtered.length === 0 && <tr><td colSpan={6} style={{ padding: 20, textAlign: 'center', color: B.textMuted }}>No activity yet</td></tr>}
           {filtered.map((l, i) => (
             <tr key={l.id || i} style={{ borderBottom: `1px solid ${B.cardBorder}` }}>
               <td style={{ padding: '8px', color: B.textMuted, fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleString('en-NZ')}</td>
@@ -612,6 +630,9 @@ function ActivityView({ logs, theme }) {
               <td style={{ padding: '8px', color: B.textMuted, fontSize: 12 }}>{l.company}</td>
               <td style={{ padding: '8px', color: B.text, fontSize: 12 }}>{l.action}</td>
               <td style={{ padding: '8px', color: B.textMuted, fontSize: 12 }}>{l.details}</td>
+              <td style={{ padding: '8px', textAlign: 'center' }}>
+                <button onClick={() => handleDelete(l.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 12, padding: '2px 4px', opacity: 0.7 }} title="Delete">✕</button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -940,7 +961,7 @@ export default function Home() {
 
       {/* ACTIVITY (shared) */}
       {activeTab === 'Activity' && (
-        <ActivityView logs={logs} theme={theme} />
+        <ActivityView logs={logs} theme={theme} onDelete={loadLogs} />
       )}
 
       {/* CHAT */}
