@@ -844,8 +844,8 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
                         <span style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : B.textMuted }}>
                           {new Date(m.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        {isAdmin(user) && !isMe && (
-                          <button onClick={() => handleDelete(m.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 9, padding: 0, opacity: 0.6 }} title="Delete message">✕</button>
+                        {isAdmin(user) && (
+                          <button onClick={() => handleDelete(m.id)} style={{ background: 'none', border: 'none', color: isMe ? 'rgba(255,255,255,0.6)' : B.red, cursor: 'pointer', fontSize: 9, padding: 0, opacity: 0.7 }} title="Delete message">✕</button>
                         )}
                       </div>
                     </div>
