@@ -567,19 +567,25 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                 const refKey = `${l.id}-${field}-m`
                 const color = field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green
                 return (
-                  <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: `1px solid ${B.cardBorder}` }}>
-                    <span style={{ width: 44, fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', flexShrink: 0 }}>{field}</span>
-                    <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
-                      style={{ width: 22, height: 22, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: color, opacity: allowed ? 1 : 0.4, flexShrink: 0 }} />
-                    <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
-                    {allowed && (
-                      <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}>📷</button>
-                    )}
-                    {fieldPhotos.length > 0 && (
-                      <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: color, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '2px 6px', cursor: 'pointer', flexShrink: 0 }}>{fieldPhotos.length}</button>
-                    )}
-                    <div style={{ flex: 1, fontSize: 10, color: B.textMuted, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {l[`${field}_complete`] ? `${l[`${field}_by`] || ''} ${formatNZDate(l[`${field}_date`])}` : '—'}
+                  <div key={field} style={{ padding: '8px 0', borderTop: `1px solid ${B.cardBorder}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 44, fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', flexShrink: 0 }}>{field}</span>
+                      <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
+                        style={{ width: 22, height: 22, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: color, opacity: allowed ? 1 : 0.4, flexShrink: 0 }} />
+                      <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
+                      {allowed && (
+                        <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}>📷</button>
+                      )}
+                      {fieldPhotos.length > 0 && (
+                        <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: color, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '2px 6px', cursor: 'pointer', flexShrink: 0 }}>{fieldPhotos.length}</button>
+                      )}
+                      {l[`${field}_by`] && (
+                        <span style={{ fontSize: 9, color: B.textMuted, marginLeft: 'auto', flexShrink: 0 }}>{l[`${field}_by`]}</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
+                      <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed}
+                        style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
                     </div>
                   </div>
                 )
