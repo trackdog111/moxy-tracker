@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = 'https://uvecrllugptstymxnxrj.supabase.co'
@@ -264,11 +264,8 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
 }
 
 // ─── DIAGRAM VIEW ───────────────────────────────────────────────
-function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, theme }) {
+function DiagramView({ user, drawingUrl, setDrawingUrl, theme }) {
   const B = THEMES[theme]
-  const containerRef = useRef(null)
-  const [dragging, setDragging] = useState(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(70)
   const fileInputRef = useRef(null)
   const admin = isAdmin(user)
@@ -277,7 +274,6 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
     if (!admin) return
     const file = e.target.files[0]
     if (!file) return
-    // Upload to Supabase storage
     const fileName = `stairwell_drawing.${file.name.split('.').pop()}`
     const { error } = await supabase.storage.from('drawings').upload(fileName, file, { upsert: true })
     if (error) { alert('Upload failed: ' + error.message); return }
@@ -285,13 +281,11 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
     if (urlData?.publicUrl) {
       const urlWithCache = urlData.publicUrl + '?t=' + Date.now()
       setDrawingUrl(urlWithCache)
-      // Save the URL in settings table so all devices load it
       await supabase.from('settings').upsert({ key: 'drawing_url', value: urlWithCache }, { onConflict: 'key' })
     }
   }
 
   useEffect(() => {
-    // Load drawing URL from settings (shared across all devices)
     const loadDrawing = async () => {
       const { data } = await supabase.from('settings').select('value').eq('key', 'drawing_url').maybeSingle()
       if (data?.value) setDrawingUrl(data.value)
@@ -299,78 +293,9 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
     loadDrawing()
   }, [])
 
-  const handleMouseDown = (e, id) => {
-    if (!admin) return
-    e.preventDefault(); e.stopPropagation()
-    const landing = landings.find(l => l.id === id)
-    if (!landing || !containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const mxp = ((e.clientX - rect.left) / rect.width) * 100
-    const myp = ((e.clientY - rect.top) / rect.height) * 100
-    setDragging(id)
-    setDragOffset({ x: mxp - (landing.pos_x || 50), y: myp - (landing.pos_y || 50) })
-  }
-
-  const handleMouseMove = useCallback((e) => {
-    if (!dragging || !containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const nx = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
-    const ny = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
-    setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: nx, pos_y: ny } : l))
-  }, [dragging, dragOffset])
-
-  const handleMouseUp = useCallback(async () => {
-    if (!dragging) return
-    const landing = landings.find(l => l.id === dragging)
-    if (landing) await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
-    setDragging(null)
-  }, [dragging, landings])
-
-  useEffect(() => {
-    if (dragging) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-      return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp) }
-    }
-  }, [dragging, handleMouseMove, handleMouseUp])
-
-  const handleTouchStart = (e, id) => {
-    if (!admin) return
-    e.preventDefault()
-    const touch = e.touches[0]
-    const landing = landings.find(l => l.id === id)
-    if (!landing || !containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const mxp = ((touch.clientX - rect.left) / rect.width) * 100
-    const myp = ((touch.clientY - rect.top) / rect.height) * 100
-    setDragging(id)
-    setDragOffset({ x: mxp - (landing.pos_x || 50), y: myp - (landing.pos_y || 50) })
-  }
-
-  useEffect(() => {
-    if (!dragging) return
-    const onTouchMove = (e) => {
-      e.preventDefault()
-      const touch = e.touches[0]
-      if (!containerRef.current) return
-      const rect = containerRef.current.getBoundingClientRect()
-      const nx = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
-      const ny = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
-      setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: nx, pos_y: ny } : l))
-    }
-    const onTouchEnd = async () => {
-      const landing = landings.find(l => l.id === dragging)
-      if (landing) await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
-      setDragging(null)
-    }
-    window.addEventListener('touchmove', onTouchMove, { passive: false })
-    window.addEventListener('touchend', onTouchEnd)
-    return () => { window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('touchend', onTouchEnd) }
-  }, [dragging, dragOffset, landings])
-
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div className="no-print" style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 10, background: B.card, borderBottom: `1px solid ${B.cardBorder}` }}>
+      <div className="no-print" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, background: B.card, borderBottom: `1px solid ${B.cardBorder}`, flexWrap: 'wrap' }}>
         {admin && (
           <>
             <input type="file" ref={fileInputRef} accept="image/*,.pdf" onChange={handleUpload} style={{ display: 'none' }} />
@@ -380,36 +305,16 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
         <button onClick={() => setZoom(z => Math.max(20, z - 10))} style={{ padding: '6px 10px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 14, cursor: 'pointer' }}>−</button>
         <span style={{ color: B.textMuted, fontSize: 12, minWidth: 40, textAlign: 'center' }}>{zoom}%</span>
         <button onClick={() => setZoom(z => Math.min(200, z + 10))} style={{ padding: '6px 10px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 14, cursor: 'pointer' }}>+</button>
-        <span style={{ color: B.textMuted, fontSize: 11, marginLeft: 10 }}>{admin ? 'Admin mode — drag circles to reposition.' : 'View only — landing positions set by admin.'}</span>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: theme === 'dark' ? '#111' : '#e2e8f0' }}>
-        <div ref={containerRef} style={{ position: 'relative', width: `${zoom}%`, minHeight: 400, margin: '0 auto', userSelect: 'none' }}>
+        <div style={{ width: `${zoom}%`, margin: '0 auto' }}>
           {drawingUrl ? (
-            <img src={drawingUrl} alt="Stair landings" style={{ width: '100%', display: 'block', pointerEvents: 'none' }} draggable={false} />
+            <img src={drawingUrl} alt="Stair landings" style={{ width: '100%', display: 'block' }} draggable={false} />
           ) : (
             <div style={{ height: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', color: B.textMuted, fontSize: 14 }}>
               {admin ? 'Click "Upload Drawing" to load the stairwell image' : 'Waiting for admin to upload stairwell drawing'}
             </div>
           )}
-          {drawingUrl && landings.map(landing => {
-            const color = getStatusColor(landing, B)
-            return (
-              <div key={landing.id}
-                onMouseDown={(e) => handleMouseDown(e, landing.id)}
-                onTouchStart={(e) => handleTouchStart(e, landing.id)}
-                title={`Landing ${landing.number} — ${getLevelLabel(landing.number)}`}
-                style={{
-                  position: 'absolute', left: `${landing.pos_x || 50}%`, top: `${landing.pos_y || 50}%`, transform: 'translate(-50%, -50%)',
-                  width: 26, height: 26, borderRadius: '50%', background: color,
-                  border: dragging === landing.id ? '3px solid #fff' : '2px solid rgba(255,255,255,0.8)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: admin ? 'grab' : 'default',
-                  zIndex: dragging === landing.id ? 999 : 10,
-                  boxShadow: dragging === landing.id ? '0 0 12px rgba(0,0,0,0.5)' : '0 1px 4px rgba(0,0,0,0.4)',
-                  fontSize: 11, fontWeight: 800, color: '#fff', userSelect: 'none', touchAction: 'none',
-                }}>{landing.number}</div>
-            )
-          })}
         </div>
       </div>
     </div>
@@ -1166,7 +1071,7 @@ export default function Home() {
 
       {/* STAIR LANDINGS */}
       {tracker === 'landings' && activeTab === 'Diagram' && (
-        <DiagramView landings={landings} setLandings={setLandings} user={user} drawingUrl={drawingUrl} setDrawingUrl={setDrawingUrl} theme={theme} />
+        <DiagramView user={user} drawingUrl={drawingUrl} setDrawingUrl={setDrawingUrl} theme={theme} />
       )}
       {tracker === 'landings' && activeTab === 'Table' && (
         <GenericTableView items={landings} user={user} tableName="landings" labelFn={landingLabelFn} theme={theme} onUpdate={loadLandings} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} />
