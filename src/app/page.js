@@ -39,6 +39,13 @@ const TRADE_PERMISSIONS = {
   'Nauhria': ['steel'],
 }
 
+const COMPANY_COLORS = {
+  'City Scaffold': '#4A9AB5',
+  'CMP Construction': '#F97316',
+  'Dominion Constructors': '#8B5CF6',
+  'Nauhria': '#22C55E',
+}
+
 function canEdit(user, field) {
   if (isAdmin(user)) return true
   const allowed = TRADE_PERMISSIONS[user.company] || []
@@ -182,7 +189,7 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
   const steel = items.filter(l => l.steel_complete && !l.pour_complete).length
   const poured = items.filter(l => l.pour_complete).length
   const notStarted = items.length - shored - steel - poured
-  const tabs = tracker === 'landings' ? ['Diagram', 'Table', 'Activity'] : ['Table', 'Activity']
+  const tabs = tracker === 'landings' ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Table', 'Activity', 'Chat']
 
   return (
     <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, padding: '0 16px', display: 'flex', alignItems: 'center', minHeight: 56, gap: 12, position: 'sticky', top: 0, zIndex: 100, flexWrap: 'wrap' }}>
@@ -365,9 +372,11 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
 }
 
 // ─── GENERIC TABLE VIEW (used for both landings and lobby slabs) ──
-function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate }) {
+function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, notes, onNotesUpdate }) {
   const B = THEMES[theme]
   const isLandings = tableName === 'landings'
+  const itemType = isLandings ? 'landing' : 'lobby_slab'
+  const [newNote, setNewNote] = useState({})
 
   const handleToggle = async (item, field) => {
     if (!canEdit(user, field)) return
@@ -402,8 +411,28 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate }) 
     onUpdate()
   }
 
-  const handleNotes = async (item, notes) => {
-    await supabase.from(tableName).update({ notes }).eq('id', item.id)
+  const handleAddNote = async (itemId) => {
+    const msg = (newNote[itemId] || '').trim()
+    if (!msg) return
+    await supabase.from('notes').insert({
+      item_type: itemType,
+      item_id: itemId,
+      user_name: user.name,
+      company: user.company,
+      message: msg,
+    })
+    setNewNote(prev => ({ ...prev, [itemId]: '' }))
+    onNotesUpdate()
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    if (!isAdmin(user)) return
+    await supabase.from('notes').delete().eq('id', noteId)
+    onNotesUpdate()
+  }
+
+  const getItemNotes = (itemId) => {
+    return (notes || []).filter(n => n.item_type === itemType && n.item_id === itemId)
   }
 
   const dtInputStyle = (allowed) => ({
@@ -465,8 +494,24 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate }) 
                     <td key={`${l.id}-${field}-by`} style={{ padding: '6px', color: B.textMuted, fontSize: 11, whiteSpace: 'nowrap' }}>{l[`${field}_by`] || '-'}</td>,
                   ]
                 })}
-                <td style={{ padding: '6px' }}>
-                  <input defaultValue={l.notes || ''} onBlur={(e) => handleNotes(l, e.target.value)} style={{ width: '100%', padding: '4px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                <td style={{ padding: '6px', minWidth: 220, verticalAlign: 'top' }}>
+                  {getItemNotes(l.id).map(n => (
+                    <div key={n.id} style={{ marginBottom: 4, fontSize: 11, lineHeight: 1.4, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+                      <span style={{ color: COMPANY_COLORS[n.company] || B.textMuted, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{n.user_name}:</span>
+                      <span style={{ color: B.text, flex: 1 }}>{n.message}</span>
+                      {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: '0 2px', flexShrink: 0, opacity: 0.6 }} title="Delete note">✕</button>}
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0 }}>
+                    <input
+                      value={newNote[l.id] || ''}
+                      onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }}
+                      placeholder="Add note..."
+                      style={{ flex: 1, padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
+                    />
+                    <button onClick={() => handleAddNote(l.id)} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+</button>
+                  </div>
                 </td>
               </tr>
             )
@@ -503,7 +548,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate }) 
               <td style={{ textAlign: 'center' }}>{l.pour_complete ? '✅' : '—'}</td>
               <td>{formatNZDate(l.pour_date)}</td>
               <td>{l.pour_by || '-'}</td>
-              <td>{l.notes || ''}</td>
+              <td>{getItemNotes(l.id).map(n => `${n.user_name}: ${n.message}`).join(' | ') || ''}</td>
             </tr>
           ))}
         </tbody>
@@ -593,12 +638,179 @@ function ActivityView({ logs, theme }) {
   )
 }
 
+// ─── CHAT VIEW ──────────────────────────────────────────────────
+function ChatView({ messages, user, theme, onSend }) {
+  const B = THEMES[theme]
+  const [msg, setMsg] = useState('')
+  const [filterCompany, setFilterCompany] = useState('All')
+  const [filterPerson, setFilterPerson] = useState('All')
+  const chatEndRef = useRef(null)
+  const companies = ['All', ...COMPANIES]
+
+  // Get unique people from messages
+  const people = ['All', ...Array.from(new Set(messages.map(m => m.user_name))).sort()]
+
+  const filtered = messages.filter(m => {
+    if (filterCompany !== 'All' && m.company !== filterCompany) return false
+    if (filterPerson !== 'All' && m.user_name !== filterPerson) return false
+    return true
+  })
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [filtered.length])
+
+  const handleSend = async () => {
+    const text = msg.trim()
+    if (!text) return
+    await supabase.from('chat_messages').insert({
+      user_name: user.name,
+      company: user.company,
+      message: text,
+    })
+    setMsg('')
+    onSend()
+  }
+
+  const handleDelete = async (id) => {
+    if (!isAdmin(user)) return
+    await supabase.from('chat_messages').delete().eq('id', id)
+    onSend()
+  }
+
+  const exportCSV = () => {
+    const header = 'Timestamp,User,Company,Message\n'
+    const rows = filtered.map(m => `"${new Date(m.created_at).toLocaleString('en-NZ')}","${m.user_name}","${m.company}","${m.message.replace(/"/g, '""')}"`).join('\n')
+    const blob = new Blob([header + rows], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `moxy_chat_${new Date().toISOString().split('T')[0]}.csv`; a.click()
+  }
+
+  const exportPDF = () => { window.print() }
+
+  // Group messages by date
+  const groupByDate = (msgs) => {
+    const groups = {}
+    msgs.forEach(m => {
+      const date = new Date(m.created_at).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      if (!groups[date]) groups[date] = []
+      groups[date].push(m)
+    })
+    return groups
+  }
+
+  const grouped = groupByDate(filtered)
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Filters bar */}
+      <div className="no-print" style={{ padding: '10px 20px', display: 'flex', gap: 10, alignItems: 'center', background: B.card, borderBottom: `1px solid ${B.cardBorder}` }}>
+        <label style={{ color: B.textMuted, fontSize: 12, fontWeight: 600 }}>Company:</label>
+        <select value={filterCompany} onChange={e => { setFilterCompany(e.target.value); setFilterPerson('All') }} style={{ padding: '5px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12 }}>
+          {companies.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <label style={{ color: B.textMuted, fontSize: 12, fontWeight: 600, marginLeft: 8 }}>Person:</label>
+        <select value={filterPerson} onChange={e => setFilterPerson(e.target.value)} style={{ padding: '5px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12 }}>
+          {people.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <span style={{ color: B.textMuted, fontSize: 11 }}>({filtered.length} messages)</span>
+        <div style={{ flex: 1 }} />
+        <button onClick={exportPDF} style={{ padding: '5px 12px', background: B.dark, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📄 PDF</button>
+        <button onClick={exportCSV} style={{ padding: '5px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>📊 CSV</button>
+      </div>
+
+      {/* Print header */}
+      <div className="print-only" style={{ display: 'none', marginBottom: 16, padding: '0 20px' }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#000' }}>Moxy Hotel — Site Chat</h1>
+        <p style={{ fontSize: 12, color: '#666', margin: '4px 0 0 0' }}>
+          City Scaffold Ltd — {filterCompany !== 'All' ? `Company: ${filterCompany}` : 'All companies'}{filterPerson !== 'All' ? ` — Person: ${filterPerson}` : ''} — Printed {new Date().toLocaleString('en-NZ')}
+        </p>
+      </div>
+
+      {/* Messages area */}
+      <div className="no-print" style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+        {filtered.length === 0 && (
+          <div style={{ textAlign: 'center', color: B.textMuted, marginTop: 60, fontSize: 14 }}>No messages yet. Start the conversation!</div>
+        )}
+        {Object.entries(grouped).map(([date, msgs]) => (
+          <div key={date}>
+            <div style={{ textAlign: 'center', margin: '16px 0 12px', position: 'relative' }}>
+              <span style={{ background: B.bg, padding: '0 12px', color: B.textMuted, fontSize: 11, fontWeight: 600, position: 'relative', zIndex: 1 }}>{date}</span>
+              <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: B.cardBorder, zIndex: 0 }} />
+            </div>
+            {msgs.map(m => {
+              const isMe = m.user_name === user.name
+              const companyColor = COMPANY_COLORS[m.company] || B.textMuted
+              return (
+                <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                  <div style={{
+                    maxWidth: '70%', padding: '8px 12px', borderRadius: 10,
+                    background: isMe ? B.primary : B.card,
+                    border: isMe ? 'none' : `1px solid ${B.cardBorder}`,
+                    borderBottomRightRadius: isMe ? 2 : 10,
+                    borderBottomLeftRadius: isMe ? 10 : 2,
+                  }}>
+                    {!isMe && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color: companyColor, marginBottom: 2 }}>{m.user_name} <span style={{ fontWeight: 400, opacity: 0.7 }}>({m.company})</span></div>
+                    )}
+                    <div style={{ fontSize: 13, color: isMe ? '#fff' : B.text, lineHeight: 1.4, wordBreak: 'break-word' }}>{m.message}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : B.textMuted }}>
+                        {new Date(m.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {isAdmin(user) && !isMe && (
+                        <button onClick={() => handleDelete(m.id)} style={{ background: 'none', border: 'none', color: isMe ? 'rgba(255,255,255,0.5)' : B.red, cursor: 'pointer', fontSize: 9, padding: 0, opacity: 0.6 }} title="Delete message">✕</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Print messages */}
+      <table className="print-table print-only" style={{ display: 'none', margin: '0 20px' }}>
+        <thead>
+          <tr><th>Time</th><th>User</th><th>Company</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+          {filtered.map(m => (
+            <tr key={m.id}>
+              <td>{new Date(m.created_at).toLocaleString('en-NZ')}</td>
+              <td>{m.user_name}</td>
+              <td>{m.company}</td>
+              <td>{m.message}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Message input */}
+      <div className="no-print" style={{ padding: '12px 20px', background: B.card, borderTop: `1px solid ${B.cardBorder}`, display: 'flex', gap: 10 }}>
+        <input
+          value={msg}
+          onChange={e => setMsg(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          placeholder="Type a message..."
+          style={{ flex: 1, padding: '10px 14px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 8, color: B.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+        />
+        <button onClick={handleSend} style={{ padding: '10px 24px', background: B.primary, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Send</button>
+      </div>
+    </div>
+  )
+}
+
 // ─── MAIN APP ───────────────────────────────────────────────────
 export default function Home() {
   const [user, setUser] = useState(null)
   const [landings, setLandings] = useState([])
   const [lobbySlabs, setLobbySlabs] = useState([])
   const [logs, setLogs] = useState([])
+  const [notes, setNotes] = useState([])
+  const [chatMessages, setChatMessages] = useState([])
   const [activeTab, setActiveTab] = useState('Diagram')
   const [drawingUrl, setDrawingUrl] = useState('')
   const [theme, setTheme] = useState('dark')
@@ -618,14 +830,18 @@ export default function Home() {
   const loadLandings = async () => { const { data } = await supabase.from('landings').select('*').order('number'); if (data) setLandings(data) }
   const loadLobbySlabs = async () => { const { data } = await supabase.from('lobby_slabs').select('*').order('number'); if (data) setLobbySlabs(data) }
   const loadLogs = async () => { const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200); if (data) setLogs(data) }
+  const loadNotes = async () => { const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: true }); if (data) setNotes(data) }
+  const loadChat = async () => { const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }); if (data) setChatMessages(data) }
 
   useEffect(() => {
     if (!user) return
-    loadLandings(); loadLobbySlabs(); loadLogs()
+    loadLandings(); loadLobbySlabs(); loadLogs(); loadNotes(); loadChat()
     const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
     const lobbySub = supabase.channel('lobby-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_slabs' }, () => loadLobbySlabs()).subscribe()
     const activitySub = supabase.channel('activity-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadLogs()).subscribe()
-    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(activitySub) }
+    const notesSub = supabase.channel('notes-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, () => loadNotes()).subscribe()
+    const chatSub = supabase.channel('chat-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => loadChat()).subscribe()
+    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub) }
   }, [user])
 
   const handleLogin = (userData) => { setUser(userData); sessionStorage.setItem('moxy_user', JSON.stringify(userData)) }
@@ -646,17 +862,22 @@ export default function Home() {
         <DiagramView landings={landings} setLandings={setLandings} user={user} drawingUrl={drawingUrl} setDrawingUrl={setDrawingUrl} theme={theme} />
       )}
       {tracker === 'landings' && activeTab === 'Table' && (
-        <GenericTableView items={landings} user={user} tableName="landings" labelFn={landingLabelFn} theme={theme} onUpdate={loadLandings} />
+        <GenericTableView items={landings} user={user} tableName="landings" labelFn={landingLabelFn} theme={theme} onUpdate={loadLandings} notes={notes} onNotesUpdate={loadNotes} />
       )}
 
       {/* LOBBY SLABS */}
       {tracker === 'lobby' && activeTab === 'Table' && (
-        <GenericTableView items={lobbySlabs} user={user} tableName="lobby_slabs" labelFn={lobbyLabelFn} theme={theme} onUpdate={loadLobbySlabs} />
+        <GenericTableView items={lobbySlabs} user={user} tableName="lobby_slabs" labelFn={lobbyLabelFn} theme={theme} onUpdate={loadLobbySlabs} notes={notes} onNotesUpdate={loadNotes} />
       )}
 
       {/* ACTIVITY (shared) */}
       {activeTab === 'Activity' && (
         <ActivityView logs={logs} theme={theme} />
+      )}
+
+      {/* CHAT */}
+      {activeTab === 'Chat' && (
+        <ChatView messages={chatMessages} user={user} theme={theme} onSend={loadChat} />
       )}
     </div>
   )
