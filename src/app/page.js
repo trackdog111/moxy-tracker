@@ -21,11 +21,51 @@ const INVITE_CODES = {
 
 const COMPANIES = [...new Set(Object.values(INVITE_CODES))]
 
+const isAdmin = (user) => user && user.name.toLowerCase() === 'shane' && user.company === 'City Scaffold'
+
+const TRADE_PERMISSIONS = {
+  'City Scaffold': ['shore'],
+  'CMP Construction': ['pour'],
+  'Dominion Constructors': ['pour'],
+  'Nauhria': ['steel'],
+}
+
+function canEdit(user, field) {
+  if (isAdmin(user)) return true
+  const allowed = TRADE_PERMISSIONS[user.company] || []
+  return allowed.includes(field)
+}
+
+function getLevelLabel(num) {
+  if (num === 1) return 'B1.5'
+  if (num === 2) return 'Ground'
+  if (num === 3) return 'Ground (upper)'
+  if (num === 4) return 'G-L2 (lower)'
+  if (num === 5) return 'G-L2 (upper)'
+  if (num === 44) return 'Roof'
+  const offset = num - 6
+  const group = Math.floor(offset / 3)
+  const pos = offset % 3
+  const level = group + 2
+  if (pos === 0 || pos === 1) return `Level ${level}`
+  return `Level ${level}.5`
+}
+
 function getStatusColor(landing) {
   if (landing.pour_complete) return BRAND.green
   if (landing.steel_complete) return BRAND.yellow
   if (landing.shore_complete) return BRAND.blue
   return BRAND.red
+}
+
+// Convert ISO string to datetime-local input value
+function toLocalInput(isoStr) {
+  if (!isoStr) return ''
+  try {
+    const d = new Date(isoStr)
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  } catch { return '' }
 }
 
 function LoginScreen({ onLogin }) {
@@ -108,7 +148,7 @@ function Header({ user, landings, activeTab, setActiveTab, onLogout }) {
         <div style={{ width: 28, height: 28, background: BRAND.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
         <div>
           <div style={{ color: BRAND.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel — Stair Landing Tracker</div>
-          <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Logged in as {user.name} ({user.company})</div>
+          <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Logged in as {user.name} ({user.company}){isAdmin(user) ? ' — Admin' : ''}</div>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 16, marginLeft: 20 }}>
@@ -134,8 +174,10 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(70)
   const fileInputRef = useRef(null)
+  const admin = isAdmin(user)
 
   const handleUpload = (e) => {
+    if (!admin) return
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
@@ -146,6 +188,7 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
   useEffect(() => { const saved = localStorage.getItem('moxy_drawing'); if (saved) setDrawingUrl(saved) }, [])
 
   const handleMouseDown = (e, id) => {
+    if (!admin) return
     e.preventDefault(); e.stopPropagation()
     const landing = landings.find(l => l.id === id)
     if (!landing || !containerRef.current) return
@@ -180,6 +223,7 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
   }, [dragging, handleMouseMove, handleMouseUp])
 
   const handleTouchStart = (e, id) => {
+    if (!admin) return
     e.preventDefault()
     const touch = e.touches[0]
     const landing = landings.find(l => l.id === id)
@@ -215,32 +259,43 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 10, background: BRAND.card, borderBottom: `1px solid ${BRAND.cardBorder}` }}>
-        <input type="file" ref={fileInputRef} accept="image/*,.pdf" onChange={handleUpload} style={{ display: 'none' }} />
-        <button onClick={() => fileInputRef.current?.click()} style={{ padding: '6px 14px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 12, cursor: 'pointer' }}>Upload Drawing</button>
+        {admin && (
+          <>
+            <input type="file" ref={fileInputRef} accept="image/*,.pdf" onChange={handleUpload} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current?.click()} style={{ padding: '6px 14px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 12, cursor: 'pointer' }}>Upload Drawing</button>
+          </>
+        )}
         <button onClick={() => setZoom(z => Math.max(20, z - 10))} style={{ padding: '6px 10px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 14, cursor: 'pointer' }}>−</button>
         <span style={{ color: BRAND.textMuted, fontSize: 12, minWidth: 40, textAlign: 'center' }}>{zoom}%</span>
         <button onClick={() => setZoom(z => Math.min(200, z + 10))} style={{ padding: '6px 10px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 14, cursor: 'pointer' }}>+</button>
-        <span style={{ color: BRAND.textMuted, fontSize: 11, marginLeft: 10 }}>Drag numbered circles onto the landings. Positions save automatically.</span>
+        <span style={{ color: BRAND.textMuted, fontSize: 11, marginLeft: 10 }}>{admin ? 'Admin mode — drag circles to reposition.' : 'View only — landing positions set by admin.'}</span>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: '#111' }}>
         <div ref={containerRef} style={{ position: 'relative', width: `${zoom}%`, minHeight: 400, margin: '0 auto', userSelect: 'none' }}>
           {drawingUrl ? (
             <img src={drawingUrl} alt="Stair landings" style={{ width: '100%', display: 'block', pointerEvents: 'none' }} draggable={false} />
           ) : (
-            <div style={{ height: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', color: BRAND.textMuted, fontSize: 14 }}>Click &quot;Upload Drawing&quot; to load the stairwell image</div>
+            <div style={{ height: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', color: BRAND.textMuted, fontSize: 14 }}>
+              {admin ? 'Click "Upload Drawing" to load the stairwell image' : 'Waiting for admin to upload stairwell drawing'}
+            </div>
           )}
           {drawingUrl && landings.map(landing => {
             const color = getStatusColor(landing)
             return (
-              <div key={landing.id} onMouseDown={(e) => handleMouseDown(e, landing.id)} onTouchStart={(e) => handleTouchStart(e, landing.id)} style={{
-                position: 'absolute', left: `${landing.pos_x || 50}%`, top: `${landing.pos_y || 50}%`, transform: 'translate(-50%, -50%)',
-                width: 26, height: 26, borderRadius: '50%', background: color,
-                border: dragging === landing.id ? '3px solid #fff' : '2px solid rgba(255,255,255,0.8)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab',
-                zIndex: dragging === landing.id ? 999 : 10,
-                boxShadow: dragging === landing.id ? '0 0 12px rgba(0,0,0,0.5)' : '0 1px 4px rgba(0,0,0,0.4)',
-                fontSize: 11, fontWeight: 800, color: '#fff', userSelect: 'none', touchAction: 'none',
-              }}>{landing.number}</div>
+              <div key={landing.id}
+                onMouseDown={(e) => handleMouseDown(e, landing.id)}
+                onTouchStart={(e) => handleTouchStart(e, landing.id)}
+                title={`Landing ${landing.number} — ${getLevelLabel(landing.number)}`}
+                style={{
+                  position: 'absolute', left: `${landing.pos_x || 50}%`, top: `${landing.pos_y || 50}%`, transform: 'translate(-50%, -50%)',
+                  width: 26, height: 26, borderRadius: '50%', background: color,
+                  border: dragging === landing.id ? '3px solid #fff' : '2px solid rgba(255,255,255,0.8)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: admin ? 'grab' : 'default',
+                  zIndex: dragging === landing.id ? 999 : 10,
+                  boxShadow: dragging === landing.id ? '0 0 12px rgba(0,0,0,0.5)' : '0 1px 4px rgba(0,0,0,0.4)',
+                  fontSize: 11, fontWeight: 800, color: '#fff', userSelect: 'none', touchAction: 'none',
+                }}>{landing.number}</div>
             )
           })}
         </div>
@@ -251,18 +306,36 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
 
 function TableView({ landings, user, onUpdate }) {
   const handleToggle = async (landing, field) => {
+    if (!canEdit(user, field)) return
     const newVal = !landing[`${field}_complete`]
-    await supabase.from('landings').update({
+    const updates = {
       [`${field}_complete`]: newVal,
-      [`${field}_date`]: newVal ? new Date().toISOString() : null,
       [`${field}_by`]: newVal ? `${user.name} (${user.company})` : null,
-    }).eq('id', landing.id)
+    }
+    // Clear date if unchecking
+    if (!newVal) updates[`${field}_date`] = null
+    await supabase.from('landings').update(updates).eq('id', landing.id)
     await supabase.from('activity_log').insert({
       user_name: user.name, company: user.company,
       action: newVal ? `Completed ${field}` : `Unchecked ${field}`,
-      details: `Landing ${landing.number} - ${field} ${newVal ? 'completed' : 'unchecked'}`,
+      details: `Landing ${landing.number} (${getLevelLabel(landing.number)}) - ${field} ${newVal ? 'completed' : 'unchecked'}`,
       device_info: navigator.userAgent?.substring(0, 100) || '',
     })
+    onUpdate()
+  }
+
+  const handleDate = async (landing, field, value) => {
+    if (!canEdit(user, field)) return
+    const isoVal = value ? new Date(value).toISOString() : null
+    await supabase.from('landings').update({ [`${field}_date`]: isoVal }).eq('id', landing.id)
+    if (value) {
+      await supabase.from('activity_log').insert({
+        user_name: user.name, company: user.company,
+        action: `Set ${field} date`,
+        details: `Landing ${landing.number} (${getLevelLabel(landing.number)}) - ${field} date set to ${value}`,
+        device_info: navigator.userAgent?.substring(0, 100) || '',
+      })
+    }
     onUpdate()
   }
 
@@ -270,34 +343,62 @@ function TableView({ landings, user, onUpdate }) {
     await supabase.from('landings').update({ notes }).eq('id', landing.id)
   }
 
+  const dtInputStyle = (allowed) => ({
+    padding: '3px 6px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`,
+    borderRadius: 4, color: BRAND.text, fontSize: 11, outline: 'none', boxSizing: 'border-box',
+    opacity: allowed ? 1 : 0.4, cursor: allowed ? 'pointer' : 'not-allowed',
+    colorScheme: 'dark',
+  })
+
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${BRAND.cardBorder}` }}>
-            {['#', 'SHORE LOADING', 'SHORE DATE', 'SHORE BY', 'STEEL FIXING', 'STEEL DATE', 'STEEL BY', 'CONCRETE POUR', 'POUR DATE', 'POUR BY', 'NOTES'].map(h => (
-              <th key={h} style={{ color: BRAND.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+            {['#', 'LEVEL', 'SHORE', 'SHORE DATE/TIME', 'SHORE BY', 'STEEL', 'STEEL DATE/TIME', 'STEEL BY', 'POUR', 'POUR DATE/TIME', 'POUR BY', 'NOTES'].map(h => (
+              <th key={h} style={{ color: BRAND.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 6px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {landings.sort((a, b) => a.number - b.number).map(l => (
-            <tr key={l.id} style={{ borderBottom: `1px solid ${BRAND.cardBorder}` }}>
-              <td style={{ padding: '8px', textAlign: 'center' }}>
-                <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: getStatusColor(l), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{l.number}</span>
-              </td>
-              {['shore', 'steel', 'pour'].map(field => [
-                <td key={`${l.id}-${field}-cb`} style={{ padding: '8px', textAlign: 'center' }}>
-                  <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} style={{ width: 18, height: 18, cursor: 'pointer', accentColor: field === 'shore' ? BRAND.blue : field === 'steel' ? BRAND.yellow : BRAND.green }} />
-                </td>,
-                <td key={`${l.id}-${field}-date`} style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12 }}>{l[`${field}_date`] ? new Date(l[`${field}_date`]).toLocaleDateString('en-NZ') : '-'}</td>,
-                <td key={`${l.id}-${field}-by`} style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12 }}>{l[`${field}_by`] || '-'}</td>,
-              ])}
-              <td style={{ padding: '8px' }}>
-                <input defaultValue={l.notes || ''} onBlur={(e) => handleNotes(l, e.target.value)} style={{ width: '100%', padding: '4px 8px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 4, color: BRAND.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-              </td>
-            </tr>
-          ))}
+          {landings.sort((a, b) => a.number - b.number).map(l => {
+            const level = getLevelLabel(l.number)
+            return (
+              <tr key={l.id} style={{ borderBottom: `1px solid ${BRAND.cardBorder}` }}>
+                <td style={{ padding: '6px', textAlign: 'center' }}>
+                  <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: getStatusColor(l), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{l.number}</span>
+                </td>
+                <td style={{ padding: '6px', color: BRAND.text, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{level}</td>
+                {['shore', 'steel', 'pour'].map(field => {
+                  const allowed = canEdit(user, field)
+                  return [
+                    <td key={`${l.id}-${field}-cb`} style={{ padding: '6px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!l[`${field}_complete`]}
+                        onChange={() => handleToggle(l, field)}
+                        disabled={!allowed}
+                        style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'shore' ? BRAND.blue : field === 'steel' ? BRAND.yellow : BRAND.green, opacity: allowed ? 1 : 0.4 }}
+                      />
+                    </td>,
+                    <td key={`${l.id}-${field}-date`} style={{ padding: '6px' }}>
+                      <input
+                        type="datetime-local"
+                        defaultValue={toLocalInput(l[`${field}_date`])}
+                        onBlur={(e) => handleDate(l, field, e.target.value)}
+                        disabled={!allowed}
+                        style={dtInputStyle(allowed)}
+                      />
+                    </td>,
+                    <td key={`${l.id}-${field}-by`} style={{ padding: '6px', color: BRAND.textMuted, fontSize: 11, whiteSpace: 'nowrap' }}>{l[`${field}_by`] || '-'}</td>,
+                  ]
+                })}
+                <td style={{ padding: '6px' }}>
+                  <input defaultValue={l.notes || ''} onBlur={(e) => handleNotes(l, e.target.value)} style={{ width: '100%', padding: '4px 8px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 4, color: BRAND.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
