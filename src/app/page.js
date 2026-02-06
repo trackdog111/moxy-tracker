@@ -112,6 +112,7 @@ function getGlobalStyles(theme) {
       .desktop-table { display: none !important; }
       .mobile-cards { display: block !important; }
       .desktop-only { display: none !important; }
+      .mobile-only { display: block !important; }
       .chat-sidebar { display: none !important; }
       .chat-channel-bar { display: flex !important; }
     }
@@ -250,7 +251,7 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
       </div>
 
       {/* Mobile header - two rows */}
-      <div className="mobile-only" style={{ display: 'none' }}>
+      <div className="mobile-only" style={{ }}>
         <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>CS</div>
