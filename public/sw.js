@@ -1,12 +1,6 @@
 const CACHE_NAME = 'moxy-tracker-v1';
-const STATIC_ASSETS = [
-  '/',
-];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -20,11 +14,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first, fallback to cache
+  if (!event.request.url.startsWith('http')) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful GET requests
         if (event.request.method === 'GET' && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));

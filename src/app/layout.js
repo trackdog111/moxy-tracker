@@ -5,11 +5,6 @@ export const metadata = {
   description: 'City Scaffold Ltd — Landing progress tracker',
   manifest: '/manifest.json',
   themeColor: '#4A9AB5',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Moxy Tracker',
-  },
   viewport: {
     width: 'device-width',
     initialScale: 1,
@@ -23,7 +18,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body>

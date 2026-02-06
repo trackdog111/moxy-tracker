@@ -95,8 +95,8 @@ function formatNZDate(isoStr) {
   try { return new Date(isoStr).toLocaleString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return '-' }
 }
 
-// ─── PRINT STYLES ───────────────────────────────────────────────
-function getPrintStyles(theme) {
+// ─── PRINT + MOBILE STYLES ──────────────────────────────────────
+function getGlobalStyles(theme) {
   return `
     @media print {
       @page { size: landscape; margin: 10mm; }
@@ -108,7 +108,30 @@ function getPrintStyles(theme) {
       .print-table th { background: #e2e8f0; font-weight: 700; }
       .print-status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
     }
+    @media (max-width: 768px) {
+      .desktop-table { display: none !important; }
+      .mobile-cards { display: block !important; }
+      .desktop-only { display: none !important; }
+      .chat-sidebar { display: none !important; }
+      .chat-channel-bar { display: flex !important; }
+    }
+    @media (min-width: 769px) {
+      .mobile-cards { display: none !important; }
+      .mobile-only { display: none !important; }
+      .chat-channel-bar { display: none !important; }
+    }
   `
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  return isMobile
 }
 
 // ─── LOGIN ──────────────────────────────────────────────────────
@@ -194,43 +217,48 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
     : (isAdmin(user) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
 
   return (
-    <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, padding: '0 16px', display: 'flex', alignItems: 'center', minHeight: 56, gap: 12, position: 'sticky', top: 0, zIndex: 100, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
-        <div>
-          <div style={{ color: B.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel</div>
-          <div style={{ color: B.textMuted, fontSize: 11 }}>{user.name} ({user.company}){isAdmin(user) ? ' — Admin' : ''}</div>
+    <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, position: 'sticky', top: 0, zIndex: 100 }}>
+      {/* Top row */}
+      <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>CS</div>
+          <div>
+            <div style={{ color: B.text, fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Moxy Hotel</div>
+            <div style={{ color: B.textMuted, fontSize: 10 }}>{user.name}{isAdmin(user) ? ' — Admin' : ''}</div>
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        {/* Status counts - compact */}
+        <div className="desktop-only" style={{ display: 'flex', gap: 10 }}>
+          <span style={{ color: B.red, fontWeight: 700, fontSize: 13 }}>{notStarted} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Not Started</span></span>
+          <span style={{ color: B.blue, fontWeight: 700, fontSize: 13 }}>{shored} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Shored</span></span>
+          <span style={{ color: B.yellow, fontWeight: 700, fontSize: 13 }}>{steel} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Steel</span></span>
+          <span style={{ color: B.green, fontWeight: 700, fontSize: 13 }}>{poured} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Poured</span></span>
+        </div>
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={{ padding: '4px 8px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 13, cursor: 'pointer', color: B.text }}>
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+        <button onClick={onLogout} style={{ padding: '4px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+      </div>
+      {/* Bottom row - tabs + tracker toggle */}
+      <div style={{ padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
+          <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Landings</button>
+          <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby</button>
+        </div>
+        <div style={{ display: 'flex', gap: 3 }}>
+          {tabs.map(t => (
+            <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? B.primary : 'transparent', color: activeTab === t ? '#fff' : B.textMuted }}>{t}</button>
+          ))}
+        </div>
+        {/* Mobile status counts */}
+        <div className="mobile-only" style={{ display: 'none', gap: 6, marginLeft: 'auto' }}>
+          <span style={{ color: B.red, fontWeight: 700, fontSize: 12 }}>{notStarted}</span>
+          <span style={{ color: B.blue, fontWeight: 700, fontSize: 12 }}>{shored}</span>
+          <span style={{ color: B.yellow, fontWeight: 700, fontSize: 12 }}>{steel}</span>
+          <span style={{ color: B.green, fontWeight: 700, fontSize: 12 }}>{poured}</span>
         </div>
       </div>
-
-      {/* Tracker toggle */}
-      <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
-        <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Stair Landings</button>
-        <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby Slabs</button>
-      </div>
-
-      {/* Status counts */}
-      <div style={{ display: 'flex', gap: 12 }}>
-        <span style={{ color: B.red, fontWeight: 700, fontSize: 13 }}>{notStarted} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Not Started</span></span>
-        <span style={{ color: B.blue, fontWeight: 700, fontSize: 13 }}>{shored} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Shored</span></span>
-        <span style={{ color: B.yellow, fontWeight: 700, fontSize: 13 }}>{steel} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Steel</span></span>
-        <span style={{ color: B.green, fontWeight: 700, fontSize: 13 }}>{poured} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Poured</span></span>
-      </div>
-      <div style={{ flex: 1 }} />
-
-      {/* Tab buttons */}
-      <div style={{ display: 'flex', gap: 4 }}>
-        {tabs.map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? B.primary : 'transparent', color: activeTab === t ? '#fff' : B.textMuted }}>{t}</button>
-        ))}
-      </div>
-
-      {/* Theme toggle */}
-      <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={{ padding: '5px 10px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 14, cursor: 'pointer', color: B.text }} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-        {theme === 'dark' ? '☀️' : '🌙'}
-      </button>
-
-      <button onClick={onLogout} style={{ padding: '5px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
     </div>
   )
 }
@@ -265,7 +293,7 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
   useEffect(() => {
     // Load drawing URL from settings (shared across all devices)
     const loadDrawing = async () => {
-      const { data } = await supabase.from('settings').select('value').eq('key', 'drawing_url').single()
+      const { data } = await supabase.from('settings').select('value').eq('key', 'drawing_url').maybeSingle()
       if (data?.value) setDrawingUrl(data.value)
     }
     loadDrawing()
@@ -521,8 +549,8 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
         <button onClick={handlePrintTable} style={{ padding: '6px 14px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📄 Export PDF</button>
       </div>
 
-      {/* Interactive table (screen) */}
-      <table className="no-print" style={{ width: '100%', borderCollapse: 'collapse' }}>
+      {/* Interactive table (screen - desktop) */}
+      <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
             {['#', 'LEVEL', 'SHORE', 'SHORE DATE/TIME', 'SHORE BY', 'STEEL', 'STEEL DATE/TIME', 'STEEL BY', 'POUR', 'POUR DATE/TIME', 'POUR BY', 'NOTES'].map(h => (
@@ -587,6 +615,71 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
           })}
         </tbody>
       </table>
+
+      {/* Mobile card view */}
+      <div className="no-print mobile-cards" style={{ display: 'none' }}>
+        {sorted.map(l => {
+          const level = labelFn(l)
+          return (
+            <div key={l.id} style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+              {/* Card header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: '50%', background: getStatusColor(l, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>{l.number}</span>
+                <div>
+                  <div style={{ color: B.text, fontWeight: 700, fontSize: 14 }}>{level}</div>
+                  <div style={{ color: B.textMuted, fontSize: 11 }}>{getStatusText(l)}</div>
+                </div>
+              </div>
+              {/* Three trade rows */}
+              {['shore', 'steel', 'pour'].map(field => {
+                const allowed = canEdit(user, field)
+                const fieldPhotos = getItemPhotos(l.id, field)
+                const refKey = `${l.id}-${field}-m`
+                const color = field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green
+                return (
+                  <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: `1px solid ${B.cardBorder}` }}>
+                    <span style={{ width: 44, fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', flexShrink: 0 }}>{field}</span>
+                    <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
+                      style={{ width: 22, height: 22, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: color, opacity: allowed ? 1 : 0.4, flexShrink: 0 }} />
+                    <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
+                    {allowed && (
+                      <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}>📷</button>
+                    )}
+                    {fieldPhotos.length > 0 && (
+                      <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: color, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '2px 6px', cursor: 'pointer', flexShrink: 0 }}>{fieldPhotos.length}</button>
+                    )}
+                    <div style={{ flex: 1, fontSize: 10, color: B.textMuted, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {l[`${field}_complete`] ? `${l[`${field}_by`] || ''} ${formatNZDate(l[`${field}_date`])}` : '—'}
+                    </div>
+                  </div>
+                )
+              })}
+              {/* Notes */}
+              {getItemNotes(l.id).length > 0 && (
+                <div style={{ borderTop: `1px solid ${B.cardBorder}`, paddingTop: 6, marginTop: 4 }}>
+                  {getItemNotes(l.id).map(n => (
+                    <div key={n.id} style={{ marginBottom: 3, fontSize: 11, display: 'flex', gap: 4 }}>
+                      <span style={{ color: COMPANY_COLORS[n.company] || B.textMuted, fontWeight: 700, flexShrink: 0 }}>{n.user_name}:</span>
+                      <span style={{ color: B.text, flex: 1 }}>{n.message}</span>
+                      {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: 0, flexShrink: 0 }}>✕</button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                <input
+                  value={newNote[l.id] || ''}
+                  onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }}
+                  placeholder="Add note..."
+                  style={{ flex: 1, padding: '6px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                />
+                <button onClick={() => handleAddNote(l.id)} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
 
       {/* Print-friendly table (print only) */}
       <table className="print-table print-only" style={{ display: 'none' }}>
@@ -839,9 +932,32 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
   const channelLabel = activeChannel === 'team' ? 'Team Chat' : `DM — ${activeChannel}`
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-      {/* Sidebar */}
-      <div className="no-print" style={{ width: 220, minWidth: 220, background: B.card, borderRight: `1px solid ${B.cardBorder}`, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', flexDirection: 'column' }}>
+      {/* Mobile channel selector */}
+      <div className="no-print chat-channel-bar" style={{ display: 'none', padding: '8px 12px', background: B.card, borderBottom: `1px solid ${B.cardBorder}`, gap: 6, alignItems: 'center', overflow: 'auto' }}>
+        <button onClick={() => setActiveChannel('team')} style={{
+          padding: '5px 12px', borderRadius: 16, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+          background: activeChannel === 'team' ? B.primary : B.bg, color: activeChannel === 'team' ? '#fff' : B.textMuted
+        }}>👥 Team</button>
+        {otherUsers.map(u => {
+          const isActive = activeChannel === u.name
+          const companyColor = COMPANY_COLORS[u.company] || B.textMuted
+          const dmCount = getDmCount(u.name)
+          return (
+            <button key={u.name} onClick={() => setActiveChannel(u.name)} style={{
+              padding: '5px 12px', borderRadius: 16, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+              background: isActive ? B.primary : B.bg, color: isActive ? '#fff' : B.textMuted, position: 'relative'
+            }}>
+              {u.name}
+              {dmCount > 0 && <span style={{ background: companyColor, color: '#fff', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 8, marginLeft: 4 }}>{dmCount}</span>}
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+      {/* Sidebar (desktop) */}
+      <div className="no-print chat-sidebar" style={{ width: 220, minWidth: 220, background: B.card, borderRight: `1px solid ${B.cardBorder}`, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
         <div style={{ padding: '12px 14px', borderBottom: `1px solid ${B.cardBorder}` }}>
           <span style={{ color: B.textMuted, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Channels</span>
         </div>
@@ -985,6 +1101,7 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
         </div>
       </div>
     </div>
+    </div>
   )
 }
 
@@ -1043,8 +1160,8 @@ export default function Home() {
   const landingLabelFn = (landing) => getLevelLabel(landing.number)
 
   return (
-    <div style={{ minHeight: '100vh', background: B.bg, color: B.text, display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <style dangerouslySetInnerHTML={{ __html: getPrintStyles(theme) }} />
+    <div style={{ height: '100vh', background: B.bg, color: B.text, display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', overflow: 'hidden' }}>
+      <style dangerouslySetInnerHTML={{ __html: getGlobalStyles(theme) }} />
       <Header user={user} landings={landings} lobbySlabs={lobbySlabs} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} theme={theme} setTheme={setTheme} tracker={tracker} setTracker={setTracker} />
 
       {/* STAIR LANDINGS */}
