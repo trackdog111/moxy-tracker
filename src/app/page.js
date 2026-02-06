@@ -1,267 +1,143 @@
 'use client'
-
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
-const USERS = [
-  { name: 'Shane', company: 'City Scaffold', role: 'shore' },
-  { name: 'Steve', company: 'City Scaffold', role: 'shore' },
-  { name: 'Jun', company: 'CMP Construction', role: 'pour' },
-  { name: 'Brandon', company: 'CMP Construction', role: 'pour' },
-  { name: 'Toetuu', company: 'Dominion Constructors', role: 'pour' },
-  { name: 'Yusop', company: 'Nauhria', role: 'steel' },
-  { name: 'James', company: 'Nauhria', role: 'steel' },
-  { name: 'Arlo', company: 'Nauhria', role: 'steel' },
-]
+const supabaseUrl = 'https://uvecrllugptstymxnxrj.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2ZWNybGx1Z3B0c3R5bXhueHJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjcxMjQsImV4cCI6MjA4NTgwMzEyNH0.SgNTXQoo9JJZwfcjK6GcXrDqphzpG-6XEiua_wRpb0Q'
+const supabase = createClient(supabaseUrl, supabaseKey)
 
-const STATUS_COLORS = {
-  none: { bg: '#EF4444', border: '#DC2626', text: '#fff', label: 'Not Started' },
-  shored: { bg: '#4A9AB5', border: '#2D6E7E', text: '#fff', label: 'Shore Loading Done' },
-  steel: { bg: '#EAB308', border: '#CA8A04', text: '#000', label: 'Steel Fixing Done' },
-  poured: { bg: '#22C55E', border: '#16A34A', text: '#fff', label: 'Concrete Poured' },
+const BRAND = {
+  primary: '#4A9AB5',
+  dark: '#2D6E7E',
+  bg: '#1a1f2e',
+  card: '#232838',
+  cardBorder: '#2e3446',
+  text: '#f1f5f9',
+  textMuted: '#94a3b8',
+  red: '#ef4444',
+  blue: '#4A9AB5',
+  yellow: '#EAB308',
+  green: '#22C55E',
 }
 
-const STATUS_ORDER = ['none', 'shored', 'steel', 'poured']
-
-function getStatus(l) {
-  if (l.pour_complete) return 'poured'
-  if (l.steel_complete) return 'steel'
-  if (l.shore_complete) return 'shored'
-  return 'none'
+function getStatusColor(landing) {
+  if (landing.pour_complete) return BRAND.green
+  if (landing.steel_complete) return BRAND.yellow
+  if (landing.shore_complete) return BRAND.blue
+  return BRAND.red
 }
 
-function getDeviceInfo() {
-  const ua = navigator.userAgent
-  if (/iPhone|iPad|iPod/.test(ua)) return 'iOS'
-  if (/Android/.test(ua)) return 'Android'
-  if (/Windows/.test(ua)) return 'Windows'
-  if (/Mac/.test(ua)) return 'Mac'
-  return 'Unknown'
+function LoginScreen({ onLogin }) {
+  const [name, setName] = useState('')
+  const [company, setCompany] = useState('City Scaffold')
+  const companies = ['City Scaffold', 'CMP Construction', 'Dominion Constructors', 'Nauhria', 'BM Electrical']
+
+  return (
+    <div style={{ minHeight: '100vh', background: BRAND.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: BRAND.card, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 12, padding: 40, width: 380 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 36, height: 36, background: BRAND.primary, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>CS</div>
+          <span style={{ color: BRAND.text, fontWeight: 700, fontSize: 18 }}>Moxy Hotel</span>
+        </div>
+        <p style={{ color: BRAND.textMuted, fontSize: 13, marginBottom: 24 }}>Stair Landing Tracker</p>
+        <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>YOUR NAME</label>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Shane" style={{ width: '100%', padding: '10px 12px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 8, color: BRAND.text, fontSize: 14, marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
+        <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>COMPANY</label>
+        <select value={company} onChange={e => setCompany(e.target.value)} style={{ width: '100%', padding: '10px 12px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 8, color: BRAND.text, fontSize: 14, marginBottom: 24, outline: 'none', boxSizing: 'border-box' }}>
+          {companies.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={() => { if (name.trim()) onLogin(name.trim(), company) }} disabled={!name.trim()} style={{ width: '100%', padding: '12px', background: name.trim() ? BRAND.primary : '#555', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: name.trim() ? 'pointer' : 'not-allowed' }}>
+          Enter
+        </button>
+      </div>
+    </div>
+  )
 }
 
-export default function Home() {
-  const [user, setUser] = useState(null)
-  const [landings, setLandings] = useState([])
-  const [activities, setActivities] = useState([])
-  const [selected, setSelected] = useState(null)
+function Header({ user, landings, activeTab, setActiveTab, onLogout }) {
+  const shored = landings.filter(l => l.shore_complete && !l.steel_complete && !l.pour_complete).length
+  const steel = landings.filter(l => l.steel_complete && !l.pour_complete).length
+  const poured = landings.filter(l => l.pour_complete).length
+  const notStarted = landings.length - shored - steel - poured
+  const tabs = ['Diagram', 'Table', 'Activity', 'PDF']
+
+  return (
+    <div style={{ background: BRAND.card, borderBottom: `1px solid ${BRAND.cardBorder}`, padding: '0 20px', display: 'flex', alignItems: 'center', height: 56, gap: 20, position: 'sticky', top: 0, zIndex: 100 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 28, height: 28, background: BRAND.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
+        <div>
+          <div style={{ color: BRAND.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel — Stair Landing Tracker</div>
+          <div style={{ color: BRAND.textMuted, fontSize: 11 }}>Logged in as {user.name} ({user.company})</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 16, marginLeft: 20 }}>
+        <span style={{ color: BRAND.red, fontWeight: 700, fontSize: 14 }}>{notStarted} <span style={{ color: BRAND.textMuted, fontWeight: 400, fontSize: 11 }}>Not Started</span></span>
+        <span style={{ color: BRAND.blue, fontWeight: 700, fontSize: 14 }}>{shored} <span style={{ color: BRAND.textMuted, fontWeight: 400, fontSize: 11 }}>Shored</span></span>
+        <span style={{ color: BRAND.yellow, fontWeight: 700, fontSize: 14 }}>{steel} <span style={{ color: BRAND.textMuted, fontWeight: 400, fontSize: 11 }}>Steel</span></span>
+        <span style={{ color: BRAND.green, fontWeight: 700, fontSize: 14 }}>{poured} <span style={{ color: BRAND.textMuted, fontWeight: 400, fontSize: 11 }}>Poured</span></span>
+      </div>
+      <div style={{ flex: 1 }} />
+      <div style={{ display: 'flex', gap: 4 }}>
+        {tabs.map(t => (
+          <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? BRAND.primary : 'transparent', color: activeTab === t ? '#fff' : BRAND.textMuted }}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <button onClick={onLogout} style={{ padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+    </div>
+  )
+}
+
+function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl }) {
+  const containerRef = useRef(null)
   const [dragging, setDragging] = useState(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const [bgImage, setBgImage] = useState(null)
-  const [view, setView] = useState('diagram')
-  const [zoom, setZoom] = useState(0.7)
-  const [loading, setLoading] = useState(true)
-  const [activityFilter, setActivityFilter] = useState('all')
-  const containerRef = useRef(null)
-  const [clientIp, setClientIp] = useState('unknown')
+  const [zoom, setZoom] = useState(70)
+  const fileInputRef = useRef(null)
 
-  // Get IP
-  useEffect(() => {
-    fetch('https://api.ipify.org?format=json')
-      .then(r => r.json())
-      .then(d => setClientIp(d.ip))
-      .catch(() => setClientIp('unknown'))
-  }, [])
-
-  // Check saved user
-  useEffect(() => {
-    const saved = localStorage.getItem('moxy-user')
-    if (saved) {
-      try { setUser(JSON.parse(saved)) } catch(e) {}
-    }
-  }, [])
-
-  // Load data
-  useEffect(() => {
-    if (!user) return
-    loadLandings()
-    loadActivities()
-    loadBgImage()
-
-    const landingSub = supabase
-      .channel('landings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings())
-      .subscribe()
-
-    const actSub = supabase
-      .channel('activities')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadActivities())
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(landingSub)
-      supabase.removeChannel(actSub)
-    }
-  }, [user])
-
-  async function loadLandings() {
-    const { data } = await supabase.from('landings').select('*').order('number')
-    if (data) setLandings(data)
-    setLoading(false)
-  }
-
-  async function loadActivities() {
-    const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200)
-    if (data) setActivities(data)
-  }
-
-  async function loadBgImage() {
-    const { data } = await supabase.from('settings').select('*').eq('key', 'bg_image').single()
-    if (data?.value) setBgImage(data.value)
-  }
-
-  async function logActivity(action, details) {
-    await supabase.from('activity_log').insert({
-      user_name: user.name,
-      company: user.company,
-      action,
-      details,
-      ip_address: clientIp,
-      device_info: getDeviceInfo(),
-      user_agent: navigator.userAgent,
-    })
-  }
-
-  async function updateLanding(id, updates, actionDesc) {
-    const { error } = await supabase.from('landings').update(updates).eq('id', id)
-    if (!error && actionDesc) await logActivity(actionDesc.action, actionDesc.details)
-  }
-
-  async function handleImageUpload(e) {
+  const handleUpload = (e) => {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target.result
-      setBgImage(dataUrl)
-      await supabase.from('settings').upsert({ key: 'bg_image', value: dataUrl })
-      await logActivity('upload_drawing', 'Uploaded new stairwell drawing')
+    reader.onload = (ev) => {
+      const url = ev.target.result
+      setDrawingUrl(url)
+      localStorage.setItem('moxy_drawing', url)
     }
     reader.readAsDataURL(file)
   }
 
-  function selectUser(u) {
-    setUser(u)
-    localStorage.setItem('moxy-user', JSON.stringify(u))
-    logActivity('login', `${u.name} (${u.company}) logged in`)
-  }
+  useEffect(() => {
+    const saved = localStorage.getItem('moxy_drawing')
+    if (saved) setDrawingUrl(saved)
+  }, [])
 
-  function logout() {
-    logActivity('logout', `${user.name} (${user.company}) logged out`)
-    localStorage.removeItem('moxy-user')
-    setUser(null)
-  }
-
-  // Shore loading toggle
-  async function toggleShore(landing) {
-    const newVal = !landing.shore_complete
-    const dateVal = newVal ? new Date().toISOString().split('T')[0] : null
-    await updateLanding(landing.id, {
-      shore_complete: newVal,
-      shore_date: dateVal,
-      shore_by: newVal ? `${user.name} (${user.company})` : null,
-    }, {
-      action: newVal ? 'shore_complete' : 'shore_undo',
-      details: `Landing ${landing.number}: Shore loading ${newVal ? 'completed' : 'unchecked'}`,
-    })
-  }
-
-  // Steel fixing toggle
-  async function toggleSteel(landing) {
-    const newVal = !landing.steel_complete
-    const dateVal = newVal ? new Date().toISOString().split('T')[0] : null
-    await updateLanding(landing.id, {
-      steel_complete: newVal,
-      steel_date: dateVal,
-      steel_by: newVal ? `${user.name} (${user.company})` : null,
-    }, {
-      action: newVal ? 'steel_complete' : 'steel_undo',
-      details: `Landing ${landing.number}: Steel fixing ${newVal ? 'completed' : 'unchecked'}`,
-    })
-  }
-
-  // Concrete pour toggle
-  async function togglePour(landing) {
-    const newVal = !landing.pour_complete
-    const dateVal = newVal ? new Date().toISOString().split('T')[0] : null
-    await updateLanding(landing.id, {
-      pour_complete: newVal,
-      pour_date: dateVal,
-      pour_by: newVal ? `${user.name} (${user.company})` : null,
-    }, {
-      action: newVal ? 'pour_complete' : 'pour_undo',
-      details: `Landing ${landing.number}: Concrete pour ${newVal ? 'completed' : 'unchecked'}`,
-    })
-  }
-
-  // Update number
-  async function updateNumber(landing, newNumber) {
-    const oldNumber = landing.number
-    await updateLanding(landing.id, { number: newNumber }, {
-      action: 'renumber',
-      details: `Landing renumbered from ${oldNumber} to ${newNumber}`,
-    })
-  }
-
-  // Update notes
-  async function updateNotes(landing, notes) {
-    await updateLanding(landing.id, { notes }, {
-      action: 'note_edit',
-      details: `Landing ${landing.number}: Notes updated`,
-    })
-  }
-
-  // Update date fields
-  async function updateShoreDate(landing, date) {
-    await updateLanding(landing.id, { shore_date: date }, {
-      action: 'date_edit',
-      details: `Landing ${landing.number}: Shore date changed to ${date}`,
-    })
-  }
-
-  async function updateSteelDate(landing, date) {
-    await updateLanding(landing.id, { steel_date: date }, {
-      action: 'date_edit',
-      details: `Landing ${landing.number}: Steel date changed to ${date}`,
-    })
-  }
-
-  async function updatePourDate(landing, date) {
-    await updateLanding(landing.id, { pour_date: date }, {
-      action: 'date_edit',
-      details: `Landing ${landing.number}: Pour date changed to ${date}`,
-    })
-  }
-
-  // Position update (drag)
-  async function updatePosition(id, x, y) {
-    await supabase.from('landings').update({ pos_x: x, pos_y: y }).eq('id', id)
-  }
-
-  // Drag handlers - positions stored as percentages of image size
-  function handleMouseDown(e, id) {
+  const handleMouseDown = (e, id) => {
+    e.preventDefault()
     e.stopPropagation()
     const landing = landings.find(l => l.id === id)
     if (!landing || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
+    const mouseXPct = ((e.clientX - rect.left) / rect.width) * 100
+    const mouseYPct = ((e.clientY - rect.top) / rect.height) * 100
     setDragging(id)
-    setDragOffset({
-      x: ((e.clientX - rect.left) / rect.width) * 100 - landing.pos_x,
-      y: ((e.clientY - rect.top) / rect.height) * 100 - landing.pos_y,
-    })
+    setDragOffset({ x: mouseXPct - (landing.pos_x || 50), y: mouseYPct - (landing.pos_y || 50) })
   }
 
   const handleMouseMove = useCallback((e) => {
     if (!dragging || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
-    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
-    setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: x, pos_y: y } : l))
+    const newX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
+    const newY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
+    setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: newX, pos_y: newY } : l))
   }, [dragging, dragOffset])
 
-  const handleMouseUp = useCallback(() => {
-    if (dragging) {
-      const l = landings.find(l => l.id === dragging)
-      if (l) updatePosition(l.id, l.pos_x, l.pos_y)
+  const handleMouseUp = useCallback(async () => {
+    if (!dragging) return
+    const landing = landings.find(l => l.id === dragging)
+    if (landing) {
+      await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
     }
     setDragging(null)
   }, [dragging, landings])
@@ -270,411 +146,244 @@ export default function Home() {
     if (dragging) {
       window.addEventListener('mousemove', handleMouseMove)
       window.addEventListener('mouseup', handleMouseUp)
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
-      }
+      return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp) }
     }
   }, [dragging, handleMouseMove, handleMouseUp])
 
-  // Touch handlers
-  function handleTouchStart(e, id) {
-    e.stopPropagation()
+  const handleTouchStart = (e, id) => {
+    e.preventDefault()
+    const touch = e.touches[0]
     const landing = landings.find(l => l.id === id)
     if (!landing || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const touch = e.touches[0]
+    const mouseXPct = ((touch.clientX - rect.left) / rect.width) * 100
+    const mouseYPct = ((touch.clientY - rect.top) / rect.height) * 100
     setDragging(id)
-    setDragOffset({
-      x: ((touch.clientX - rect.left) / rect.width) * 100 - landing.pos_x,
-      y: ((touch.clientY - rect.top) / rect.height) * 100 - landing.pos_y,
-    })
+    setDragOffset({ x: mouseXPct - (landing.pos_x || 50), y: mouseYPct - (landing.pos_y || 50) })
   }
-
-  const handleTouchMove = useCallback((e) => {
-    if (!dragging || !containerRef.current) return
-    e.preventDefault()
-    const rect = containerRef.current.getBoundingClientRect()
-    const touch = e.touches[0]
-    const x = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
-    const y = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
-    setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: x, pos_y: y } : l))
-  }, [dragging, dragOffset])
-
-  const handleTouchEnd = useCallback(() => {
-    if (dragging) {
-      const l = landings.find(l => l.id === dragging)
-      if (l) updatePosition(l.id, l.pos_x, l.pos_y)
-    }
-    setDragging(null)
-  }, [dragging, landings])
 
   useEffect(() => {
-    if (dragging) {
-      window.addEventListener('touchmove', handleTouchMove, { passive: false })
-      window.addEventListener('touchend', handleTouchEnd)
-      return () => {
-        window.removeEventListener('touchmove', handleTouchMove)
-        window.removeEventListener('touchend', handleTouchEnd)
-      }
+    if (!dragging) return
+    const onTouchMove = (e) => {
+      e.preventDefault()
+      const touch = e.touches[0]
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const newX = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
+      const newY = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
+      setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: newX, pos_y: newY } : l))
     }
-  }, [dragging, handleTouchMove, handleTouchEnd])
-
-  // Export CSV
-  function exportActivityCSV() {
-    const filtered = activityFilter === 'all' ? activities : activities.filter(a => a.company === activityFilter)
-    const csv = [
-      'Timestamp,User,Company,Action,Details,IP Address,Device',
-      ...filtered.map(a =>
-        `"${new Date(a.created_at).toLocaleString('en-NZ')}","${a.user_name}","${a.company}","${a.action}","${a.details}","${a.ip_address}","${a.device_info}"`
-      )
-    ].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `moxy-activity-log-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  // Stats
-  const shoreCount = landings.filter(l => l.shore_complete).length
-  const steelCount = landings.filter(l => l.steel_complete).length
-  const pourCount = landings.filter(l => l.pour_complete).length
-
-  // Login screen
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0F172A' }}>
-        <div className="w-full max-w-md p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: '#4A9AB5' }}>
-              <span className="text-2xl font-black" style={{ color: '#0F172A' }}>CS</span>
-            </div>
-            <h1 className="text-2xl font-bold text-white">Moxy Hotel</h1>
-            <p className="text-sm mt-1" style={{ color: '#94A3B8' }}>Stair Landing Tracker</p>
-          </div>
-          <div className="space-y-2">
-            {USERS.map((u, i) => (
-              <button
-                key={i}
-                onClick={() => selectUser(u)}
-                className="w-full p-4 rounded-lg text-left transition-all hover:scale-[1.02]"
-                style={{
-                  background: '#1E293B',
-                  border: '1px solid #334155',
-                }}
-              >
-                <div className="font-bold text-white">{u.name}</div>
-                <div className="text-xs" style={{ color: '#94A3B8' }}>{u.company}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const selectedLanding = landings.find(l => l.id === selected)
+    const onTouchEnd = async () => {
+      const landing = landings.find(l => l.id === dragging)
+      if (landing) {
+        await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
+      }
+      setDragging(null)
+    }
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', onTouchEnd)
+    return () => { window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('touchend', onTouchEnd) }
+  }, [dragging, dragOffset, landings])
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0F172A' }}>
-      {/* Header */}
-      <div className="no-print flex items-center justify-between px-4 py-3 flex-wrap gap-2" style={{ background: '#1E293B', borderBottom: '2px solid #334155' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center font-black" style={{ background: '#4A9AB5', color: '#0F172A' }}>CS</div>
-          <div>
-            <div className="font-bold text-sm text-white">Moxy Hotel — Stair Landing Tracker</div>
-            <div className="text-xs" style={{ color: '#94A3B8' }}>Logged in: {user.name} ({user.company})</div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="flex gap-4 text-xs">
-          <div className="text-center">
-            <div className="font-bold text-lg" style={{ color: '#EF4444' }}>{landings.length - shoreCount}</div>
-            <div style={{ color: '#94A3B8' }}>Not Started</div>
-          </div>
-          <div className="text-center">
-            <div className="font-bold text-lg" style={{ color: '#4A9AB5' }}>{shoreCount - steelCount}</div>
-            <div style={{ color: '#94A3B8' }}>Shored</div>
-          </div>
-          <div className="text-center">
-            <div className="font-bold text-lg" style={{ color: '#EAB308' }}>{steelCount - pourCount}</div>
-            <div style={{ color: '#94A3B8' }}>Steel</div>
-          </div>
-          <div className="text-center">
-            <div className="font-bold text-lg" style={{ color: '#22C55E' }}>{pourCount}</div>
-            <div style={{ color: '#94A3B8' }}>Poured</div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <div className="flex gap-1.5">
-          {['diagram', 'table', 'activity'].map(v => (
-            <button key={v} onClick={() => setView(v)}
-              className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
-              style={{
-                border: `1px solid ${view === v ? '#4A9AB5' : '#475569'}`,
-                background: view === v ? '#4A9AB5' : 'transparent',
-                color: view === v ? '#0F172A' : '#E2E8F0',
+    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 10, background: BRAND.card, borderBottom: `1px solid ${BRAND.cardBorder}` }}>
+        <input type="file" ref={fileInputRef} accept="image/*,.pdf" onChange={handleUpload} style={{ display: 'none' }} />
+        <button onClick={() => fileInputRef.current?.click()} style={{ padding: '6px 14px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 12, cursor: 'pointer' }}>Upload Drawing</button>
+        <button onClick={() => setZoom(z => Math.max(20, z - 10))} style={{ padding: '6px 10px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 14, cursor: 'pointer' }}>−</button>
+        <span style={{ color: BRAND.textMuted, fontSize: 12, minWidth: 40, textAlign: 'center' }}>{zoom}%</span>
+        <button onClick={() => setZoom(z => Math.min(200, z + 10))} style={{ padding: '6px 10px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 14, cursor: 'pointer' }}>+</button>
+        <span style={{ color: BRAND.textMuted, fontSize: 11, marginLeft: 10 }}>Drag numbered circles onto the landings. Positions save automatically.</span>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', background: '#111' }}>
+        <div ref={containerRef} style={{ position: 'relative', width: `${zoom}%`, minHeight: 400, margin: '0 auto', userSelect: 'none' }}>
+          {drawingUrl ? (
+            <img src={drawingUrl} alt="Stair landings" style={{ width: '100%', display: 'block', pointerEvents: 'none' }} draggable={false} />
+          ) : (
+            <div style={{ height: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', color: BRAND.textMuted, fontSize: 14 }}>Click &quot;Upload Drawing&quot; to load the stairwell image</div>
+          )}
+          {drawingUrl && landings.map(landing => {
+            const color = getStatusColor(landing)
+            return (
+              <div key={landing.id} onMouseDown={(e) => handleMouseDown(e, landing.id)} onTouchStart={(e) => handleTouchStart(e, landing.id)} style={{
+                position: 'absolute',
+                left: `${landing.pos_x || 50}%`,
+                top: `${landing.pos_y || 50}%`,
+                transform: 'translate(-50%, -50%)',
+                width: 26, height: 26, borderRadius: '50%',
+                background: color,
+                border: dragging === landing.id ? '3px solid #fff' : '2px solid rgba(255,255,255,0.8)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'grab',
+                zIndex: dragging === landing.id ? 999 : 10,
+                boxShadow: dragging === landing.id ? '0 0 12px rgba(0,0,0,0.5)' : '0 1px 4px rgba(0,0,0,0.4)',
+                fontSize: 11, fontWeight: 800, color: '#fff',
+                userSelect: 'none', touchAction: 'none',
               }}>
-              {v === 'diagram' ? '📐 Diagram' : v === 'table' ? '📋 Table' : '📊 Activity'}
-            </button>
-          ))}
-          <button onClick={() => window.print()} className="px-3 py-1.5 rounded-md text-xs font-semibold" style={{ border: '1px solid #475569', color: '#E2E8F0' }}>📄 PDF</button>
-          <button onClick={logout} className="px-3 py-1.5 rounded-md text-xs font-semibold" style={{ border: '1px solid #EF4444', color: '#EF4444' }}>Logout</button>
+                {landing.number}
+              </div>
+            )
+          })}
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {view === 'diagram' && (
-          <div className="flex-1 flex">
-            <div className="flex-1 flex flex-col">
-              {/* Toolbar */}
-              <div className="no-print flex items-center gap-2 px-4 py-2 flex-wrap" style={{ background: '#1E293B', borderBottom: '1px solid #334155' }}>
-                <label className="px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer" style={{ background: '#334155', border: '1px solid #475569', color: '#E2E8F0' }}>
-                  📷 Upload Drawing
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                </label>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setZoom(z => Math.max(0.2, z - 0.1))} className="w-7 h-7 rounded-md text-sm" style={{ border: '1px solid #475569', color: '#E2E8F0', background: 'transparent' }}>−</button>
-                  <span className="text-xs w-10 text-center" style={{ color: '#94A3B8' }}>{Math.round(zoom * 100)}%</span>
-                  <button onClick={() => setZoom(z => Math.min(3, z + 0.1))} className="w-7 h-7 rounded-md text-sm" style={{ border: '1px solid #475569', color: '#E2E8F0', background: 'transparent' }}>+</button>
-                </div>
-              </div>
+function TableView({ landings, user, onUpdate }) {
+  const handleToggle = async (landing, field) => {
+    const newVal = !landing[`${field}_complete`]
+    const updates = {
+      [`${field}_complete`]: newVal,
+      [`${field}_date`]: newVal ? new Date().toISOString() : null,
+      [`${field}_by`]: newVal ? `${user.name} (${user.company})` : null,
+    }
+    await supabase.from('landings').update(updates).eq('id', landing.id)
+    await supabase.from('activity_log').insert({
+      user_name: user.name, company: user.company,
+      action: newVal ? `Completed ${field}` : `Unchecked ${field}`,
+      details: `Landing ${landing.number} - ${field} ${newVal ? 'completed' : 'unchecked'}`,
+      device_info: navigator.userAgent?.substring(0, 100) || '',
+    })
+    onUpdate()
+  }
 
-              {/* Canvas */}
-              <div className="flex-1 overflow-auto" style={{ background: '#0F172A' }}>
-                <div ref={containerRef} style={{ position: 'relative', display: 'inline-block', cursor: dragging ? 'grabbing' : 'default', transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
-                  {bgImage && <img src={bgImage} alt="Drawing" style={{ display: 'block', pointerEvents: 'none', opacity: 0.85, maxWidth: 'none' }} />}
-                  {!bgImage && (
-                    <div style={{ width: '1400px', height: '1000px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '14px', textAlign: 'center', padding: '40px' }}>
-                      Upload your stairwell drawing using the button above
-                    </div>
-                  )}
-                  {landings.map(l => {
-                    const status = getStatus(l)
-                    const colors = STATUS_COLORS[status]
-                    const isSel = selected === l.id
-                    return (
-                      <div key={l.id}
-                        onMouseDown={e => handleMouseDown(e, l.id)}
-                        onTouchStart={e => handleTouchStart(e, l.id)}
-                        onClick={e => { e.stopPropagation(); setSelected(isSel ? null : l.id) }}
-                        style={{
-                          position: 'absolute',
-                          left: `${l.pos_x}%`,
-                          top: `${l.pos_y}%`,
-                          transform: 'translate(-50%, -50%)',
-                          width: `${36 / zoom}px`, height: `${36 / zoom}px`, borderRadius: '50%',
-                          background: colors.bg, border: `${3 / zoom}px solid ${isSel ? '#fff' : colors.border}`,
-                          boxShadow: isSel ? '0 0 0 3px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.4)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: dragging === l.id ? 'grabbing' : 'grab', userSelect: 'none',
-                          zIndex: dragging === l.id ? 1000 : isSel ? 100 : 10,
-                          fontSize: `${13 / zoom}px`, fontWeight: '800', color: colors.text,
-                          transition: dragging === l.id ? 'none' : 'box-shadow 0.15s',
-                        }}
-                        title={`Landing ${l.number} — ${colors.label}`}
-                      >{l.number}</div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
+  const handleNotes = async (landing, notes) => {
+    await supabase.from('landings').update({ notes }).eq('id', landing.id)
+  }
 
-            {/* Side Panel */}
-            <div className="w-72 flex-shrink-0 overflow-auto" style={{ background: '#1E293B', borderLeft: '2px solid #334155' }}>
-              {selectedLanding ? (
-                <div className="p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="w-11 h-11 rounded-full flex items-center justify-center font-black text-base"
-                      style={{ background: STATUS_COLORS[getStatus(selectedLanding)].bg, border: `3px solid ${STATUS_COLORS[getStatus(selectedLanding)].border}`, color: STATUS_COLORS[getStatus(selectedLanding)].text }}>
-                      {selectedLanding.number}
-                    </div>
-                  </div>
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: `2px solid ${BRAND.cardBorder}` }}>
+            {['#', 'SHORE LOADING', 'SHORE DATE', 'SHORE BY', 'STEEL FIXING', 'STEEL DATE', 'STEEL BY', 'CONCRETE POUR', 'POUR DATE', 'POUR BY', 'NOTES'].map(h => (
+              <th key={h} style={{ color: BRAND.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {landings.sort((a, b) => a.number - b.number).map(l => (
+            <tr key={l.id} style={{ borderBottom: `1px solid ${BRAND.cardBorder}` }}>
+              <td style={{ padding: '8px', textAlign: 'center' }}>
+                <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: getStatusColor(l), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{l.number}</span>
+              </td>
+              {['shore', 'steel', 'pour'].map(field => [
+                <td key={`${l.id}-${field}-cb`} style={{ padding: '8px', textAlign: 'center' }}>
+                  <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} style={{ width: 18, height: 18, cursor: 'pointer', accentColor: field === 'shore' ? BRAND.blue : field === 'steel' ? BRAND.yellow : BRAND.green }} />
+                </td>,
+                <td key={`${l.id}-${field}-date`} style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12 }}>{l[`${field}_date`] ? new Date(l[`${field}_date`]).toLocaleDateString('en-NZ') : '-'}</td>,
+                <td key={`${l.id}-${field}-by`} style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12 }}>{l[`${field}_by`] || '-'}</td>,
+              ])}
+              <td style={{ padding: '8px' }}>
+                <input defaultValue={l.notes || ''} onBlur={(e) => handleNotes(l, e.target.value)} style={{ width: '100%', padding: '4px 8px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 4, color: BRAND.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
-                  {/* Number */}
-                  <div className="mb-3">
-                    <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94A3B8' }}>Landing Number</label>
-                    <input type="number" value={selectedLanding.number}
-                      onChange={e => updateNumber(selectedLanding, parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded-md text-sm font-bold" style={{ background: '#0F172A', border: '1px solid #475569', color: '#E2E8F0' }} />
-                  </div>
+function ActivityView({ logs }) {
+  const [filter, setFilter] = useState('All')
+  const companies = ['All', 'City Scaffold', 'CMP Construction', 'Dominion Constructors', 'Nauhria']
+  const filtered = filter === 'All' ? logs : logs.filter(l => l.company === filter)
 
-                  <div className="h-px my-4" style={{ background: '#334155' }} />
+  const exportCSV = () => {
+    const header = 'Timestamp,User,Company,Action,Details\n'
+    const rows = filtered.map(l => `"${new Date(l.created_at).toLocaleString('en-NZ')}","${l.user_name}","${l.company}","${l.action}","${l.details}"`).join('\n')
+    const blob = new Blob([header + rows], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `moxy_activity_${new Date().toISOString().split('T')[0]}.csv`; a.click()
+  }
 
-                  {/* Shore Loading */}
-                  <div className="rounded-lg p-3 mb-3" style={{ background: selectedLanding.shore_complete ? 'rgba(74,154,181,0.15)' : 'rgba(239,68,68,0.1)', border: `1px solid ${selectedLanding.shore_complete ? '#4A9AB5' : '#475569'}` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div onClick={() => toggleShore(selectedLanding)} className="w-5 h-5 rounded flex items-center justify-center text-xs cursor-pointer flex-shrink-0"
-                        style={{ border: `2px solid ${selectedLanding.shore_complete ? '#4A9AB5' : '#64748B'}`, background: selectedLanding.shore_complete ? '#4A9AB5' : 'transparent', color: '#fff' }}>
-                        {selectedLanding.shore_complete && '✓'}
-                      </div>
-                      <span className="font-bold text-xs" style={{ color: '#4A9AB5' }}>Shore Loading</span>
-                    </div>
-                    <input type="date" value={selectedLanding.shore_date || ''} onChange={e => updateShoreDate(selectedLanding, e.target.value)}
-                      className="w-full px-2 py-1 rounded text-xs" style={{ background: '#0F172A', border: '1px solid #475569', color: '#E2E8F0' }} />
-                    {selectedLanding.shore_by && <div className="text-xs mt-1" style={{ color: '#64748B' }}>By: {selectedLanding.shore_by}</div>}
-                  </div>
-
-                  {/* Steel Fixing */}
-                  <div className="rounded-lg p-3 mb-3" style={{ background: selectedLanding.steel_complete ? 'rgba(234,179,8,0.15)' : 'rgba(100,116,139,0.1)', border: `1px solid ${selectedLanding.steel_complete ? '#EAB308' : '#475569'}` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div onClick={() => toggleSteel(selectedLanding)} className="w-5 h-5 rounded flex items-center justify-center text-xs cursor-pointer flex-shrink-0"
-                        style={{ border: `2px solid ${selectedLanding.steel_complete ? '#EAB308' : '#64748B'}`, background: selectedLanding.steel_complete ? '#EAB308' : 'transparent', color: '#000' }}>
-                        {selectedLanding.steel_complete && '✓'}
-                      </div>
-                      <span className="font-bold text-xs" style={{ color: '#EAB308' }}>Steel Fixing (Nauhria)</span>
-                    </div>
-                    <input type="date" value={selectedLanding.steel_date || ''} onChange={e => updateSteelDate(selectedLanding, e.target.value)}
-                      className="w-full px-2 py-1 rounded text-xs" style={{ background: '#0F172A', border: '1px solid #475569', color: '#E2E8F0' }} />
-                    {selectedLanding.steel_by && <div className="text-xs mt-1" style={{ color: '#64748B' }}>By: {selectedLanding.steel_by}</div>}
-                  </div>
-
-                  {/* Concrete Pour */}
-                  <div className="rounded-lg p-3 mb-3" style={{ background: selectedLanding.pour_complete ? 'rgba(34,197,94,0.15)' : 'rgba(100,116,139,0.1)', border: `1px solid ${selectedLanding.pour_complete ? '#22C55E' : '#475569'}` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div onClick={() => togglePour(selectedLanding)} className="w-5 h-5 rounded flex items-center justify-center text-xs cursor-pointer flex-shrink-0"
-                        style={{ border: `2px solid ${selectedLanding.pour_complete ? '#22C55E' : '#64748B'}`, background: selectedLanding.pour_complete ? '#22C55E' : 'transparent', color: '#fff' }}>
-                        {selectedLanding.pour_complete && '✓'}
-                      </div>
-                      <span className="font-bold text-xs" style={{ color: '#22C55E' }}>Concrete Poured</span>
-                    </div>
-                    <input type="date" value={selectedLanding.pour_date || ''} onChange={e => updatePourDate(selectedLanding, e.target.value)}
-                      className="w-full px-2 py-1 rounded text-xs" style={{ background: '#0F172A', border: '1px solid #475569', color: '#E2E8F0' }} />
-                    {selectedLanding.pour_by && <div className="text-xs mt-1" style={{ color: '#64748B' }}>By: {selectedLanding.pour_by}</div>}
-                  </div>
-
-                  {/* Notes */}
-                  <div className="mb-3">
-                    <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94A3B8' }}>Notes</label>
-                    <textarea value={selectedLanding.notes || ''} onChange={e => updateNotes(selectedLanding, e.target.value)} rows={3}
-                      className="w-full px-3 py-2 rounded-md text-xs resize-y" style={{ background: '#0F172A', border: '1px solid #475569', color: '#E2E8F0', fontFamily: 'inherit' }} />
-                  </div>
-                </div>
-              ) : (
-                <div className="p-10 text-center text-xs" style={{ color: '#64748B' }}>
-                  <div className="text-3xl mb-3">👆</div>
-                  Click a landing marker to edit
-                </div>
-              )}
-
-              {/* Legend */}
-              <div className="p-3 text-xs" style={{ borderTop: '1px solid #334155' }}>
-                <div className="font-bold mb-2" style={{ color: '#94A3B8' }}>LEGEND</div>
-                {Object.entries(STATUS_COLORS).map(([k, v]) => (
-                  <div key={k} className="flex items-center gap-2 mb-1">
-                    <div className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: v.bg, border: `2px solid ${v.border}` }} />
-                    <span style={{ color: '#CBD5E1' }}>{v.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {view === 'table' && (
-          <div className="flex-1 overflow-auto p-4">
-            <table className="w-full text-xs" style={{ borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['#', 'Shore Loading', 'Shore Date', 'Shore By', 'Steel Fixing', 'Steel Date', 'Steel By', 'Concrete Pour', 'Pour Date', 'Pour By', 'Notes'].map(h => (
-                    <th key={h} className="px-2 py-2.5 text-left font-bold text-xs uppercase tracking-wide sticky top-0" style={{ background: '#334155', color: '#E2E8F0', borderBottom: '2px solid #475569' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...landings].sort((a, b) => a.number - b.number).map(l => {
-                  const status = getStatus(l)
-                  return (
-                    <tr key={l.id} className="cursor-pointer" style={{ borderBottom: '1px solid #1E293B', background: selected === l.id ? 'rgba(74,154,181,0.1)' : 'transparent' }}
-                      onClick={() => setSelected(l.id === selected ? null : l.id)}>
-                      <td className="px-2 py-2 text-center">
-                        <div className="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-black" style={{ background: STATUS_COLORS[status].bg, color: STATUS_COLORS[status].text }}>{l.number}</div>
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <div onClick={e => { e.stopPropagation(); toggleShore(l) }} className="w-5 h-5 rounded inline-flex items-center justify-center text-xs cursor-pointer"
-                          style={{ border: `2px solid ${l.shore_complete ? '#4A9AB5' : '#64748B'}`, background: l.shore_complete ? '#4A9AB5' : 'transparent', color: '#fff' }}>
-                          {l.shore_complete && '✓'}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2">{l.shore_date || '-'}</td>
-                      <td className="px-2 py-2" style={{ color: '#94A3B8' }}>{l.shore_by || '-'}</td>
-                      <td className="px-2 py-2 text-center">
-                        <div onClick={e => { e.stopPropagation(); toggleSteel(l) }} className="w-5 h-5 rounded inline-flex items-center justify-center text-xs cursor-pointer"
-                          style={{ border: `2px solid ${l.steel_complete ? '#EAB308' : '#64748B'}`, background: l.steel_complete ? '#EAB308' : 'transparent', color: '#000' }}>
-                          {l.steel_complete && '✓'}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2">{l.steel_date || '-'}</td>
-                      <td className="px-2 py-2" style={{ color: '#94A3B8' }}>{l.steel_by || '-'}</td>
-                      <td className="px-2 py-2 text-center">
-                        <div onClick={e => { e.stopPropagation(); togglePour(l) }} className="w-5 h-5 rounded inline-flex items-center justify-center text-xs cursor-pointer"
-                          style={{ border: `2px solid ${l.pour_complete ? '#22C55E' : '#64748B'}`, background: l.pour_complete ? '#22C55E' : 'transparent', color: '#fff' }}>
-                          {l.pour_complete && '✓'}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2">{l.pour_date || '-'}</td>
-                      <td className="px-2 py-2" style={{ color: '#94A3B8' }}>{l.pour_by || '-'}</td>
-                      <td className="px-2 py-2" style={{ color: '#94A3B8' }}>{l.notes || '-'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {view === 'activity' && (
-          <div className="flex-1 overflow-auto p-4">
-            <div className="flex items-center gap-3 mb-4 no-print">
-              <select value={activityFilter} onChange={e => setActivityFilter(e.target.value)}
-                className="px-3 py-2 rounded-md text-xs" style={{ background: '#1E293B', border: '1px solid #475569', color: '#E2E8F0' }}>
-                <option value="all">All Companies</option>
-                <option value="City Scaffold">City Scaffold</option>
-                <option value="CMP Construction">CMP Construction</option>
-                <option value="Dominion Constructors">Dominion Constructors</option>
-                <option value="Nauhria">Nauhria</option>
-              </select>
-              <button onClick={exportActivityCSV} className="px-3 py-2 rounded-md text-xs font-semibold" style={{ background: '#4A9AB5', color: '#0F172A' }}>
-                📥 Export CSV
-              </button>
-            </div>
-
-            <table className="w-full text-xs" style={{ borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Timestamp', 'User', 'Company', 'Action', 'Details', 'IP Address', 'Device'].map(h => (
-                    <th key={h} className="px-2 py-2.5 text-left font-bold text-xs uppercase tracking-wide sticky top-0" style={{ background: '#334155', color: '#E2E8F0', borderBottom: '2px solid #475569' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(activityFilter === 'all' ? activities : activities.filter(a => a.company === activityFilter)).map(a => (
-                  <tr key={a.id} style={{ borderBottom: '1px solid #1E293B' }}>
-                    <td className="px-2 py-2 whitespace-nowrap">{new Date(a.created_at).toLocaleString('en-NZ')}</td>
-                    <td className="px-2 py-2 font-semibold">{a.user_name}</td>
-                    <td className="px-2 py-2" style={{ color: '#94A3B8' }}>{a.company}</td>
-                    <td className="px-2 py-2">
-                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold" style={{
-                        background: a.action.includes('shore') ? 'rgba(74,154,181,0.2)' : a.action.includes('steel') ? 'rgba(234,179,8,0.2)' : a.action.includes('pour') ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.2)',
-                        color: a.action.includes('shore') ? '#4A9AB5' : a.action.includes('steel') ? '#EAB308' : a.action.includes('pour') ? '#22C55E' : '#94A3B8',
-                      }}>{a.action}</span>
-                    </td>
-                    <td className="px-2 py-2">{a.details}</td>
-                    <td className="px-2 py-2" style={{ color: '#64748B' }}>{a.ip_address}</td>
-                    <td className="px-2 py-2" style={{ color: '#64748B' }}>{a.device_info}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+        <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600 }}>Filter:</label>
+        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: '6px 10px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 6, color: BRAND.text, fontSize: 12 }}>
+          {companies.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={exportCSV} style={{ padding: '6px 14px', background: BRAND.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>Export CSV</button>
       </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: `2px solid ${BRAND.cardBorder}` }}>
+            {['Time', 'User', 'Company', 'Action', 'Details'].map(h => (
+              <th key={h} style={{ color: BRAND.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 8px', textAlign: 'left' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.length === 0 && <tr><td colSpan={5} style={{ padding: 20, textAlign: 'center', color: BRAND.textMuted }}>No activity yet</td></tr>}
+          {filtered.map((l, i) => (
+            <tr key={l.id || i} style={{ borderBottom: `1px solid ${BRAND.cardBorder}` }}>
+              <td style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleString('en-NZ')}</td>
+              <td style={{ padding: '8px', color: BRAND.text, fontSize: 12, fontWeight: 600 }}>{l.user_name}</td>
+              <td style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12 }}>{l.company}</td>
+              <td style={{ padding: '8px', color: BRAND.text, fontSize: 12 }}>{l.action}</td>
+              <td style={{ padding: '8px', color: BRAND.textMuted, fontSize: 12 }}>{l.details}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export default function Home() {
+  const [user, setUser] = useState(null)
+  const [landings, setLandings] = useState([])
+  const [logs, setLogs] = useState([])
+  const [activeTab, setActiveTab] = useState('Diagram')
+  const [drawingUrl, setDrawingUrl] = useState('')
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem('moxy_user')
+    if (saved) setUser(JSON.parse(saved))
+  }, [])
+
+  const loadLandings = async () => {
+    const { data } = await supabase.from('landings').select('*').order('number')
+    if (data) setLandings(data)
+  }
+
+  const loadLogs = async () => {
+    const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200)
+    if (data) setLogs(data)
+  }
+
+  useEffect(() => {
+    if (!user) return
+    loadLandings()
+    loadLogs()
+    const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
+    const activitySub = supabase.channel('activity-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadLogs()).subscribe()
+    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(activitySub) }
+  }, [user])
+
+  const handleLogin = (name, company) => {
+    const u = { name, company }
+    setUser(u)
+    sessionStorage.setItem('moxy_user', JSON.stringify(u))
+  }
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />
+
+  return (
+    <div style={{ minHeight: '100vh', background: BRAND.bg, color: BRAND.text, display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <Header user={user} landings={landings} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => { setUser(null); sessionStorage.removeItem('moxy_user') }} />
+      {activeTab === 'Diagram' && <DiagramView landings={landings} setLandings={setLandings} user={user} drawingUrl={drawingUrl} setDrawingUrl={setDrawingUrl} />}
+      {activeTab === 'Table' && <TableView landings={landings} user={user} onUpdate={loadLandings} />}
+      {activeTab === 'Activity' && <ActivityView logs={logs} />}
+      {activeTab === 'PDF' && (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => window.print()} style={{ padding: '14px 28px', background: BRAND.primary, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>Print / Save as PDF</button>
+        </div>
+      )}
     </div>
   )
 }
