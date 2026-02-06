@@ -7,18 +7,19 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 const BRAND = {
-  primary: '#4A9AB5',
-  dark: '#2D6E7E',
-  bg: '#1a1f2e',
-  card: '#232838',
-  cardBorder: '#2e3446',
-  text: '#f1f5f9',
-  textMuted: '#94a3b8',
-  red: '#ef4444',
-  blue: '#4A9AB5',
-  yellow: '#EAB308',
-  green: '#22C55E',
+  primary: '#4A9AB5', dark: '#2D6E7E', bg: '#1a1f2e', card: '#232838',
+  cardBorder: '#2e3446', text: '#f1f5f9', textMuted: '#94a3b8',
+  red: '#ef4444', blue: '#4A9AB5', yellow: '#EAB308', green: '#22C55E',
 }
+
+const INVITE_CODES = {
+  'CS-8X4M': 'City Scaffold',
+  'CMP-7K2N': 'CMP Construction',
+  'DOM-3P9W': 'Dominion Constructors',
+  'NAU-5R6J': 'Nauhria',
+}
+
+const COMPANIES = [...new Set(Object.values(INVITE_CODES))]
 
 function getStatusColor(landing) {
   if (landing.pour_complete) return BRAND.green
@@ -28,9 +29,41 @@ function getStatusColor(landing) {
 }
 
 function LoginScreen({ onLogin }) {
+  const [mode, setMode] = useState('login')
   const [name, setName] = useState('')
-  const [company, setCompany] = useState('City Scaffold')
-  const companies = ['City Scaffold', 'CMP Construction', 'Dominion Constructors', 'Nauhria', 'BM Electrical']
+  const [password, setPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const inputStyle = { width: '100%', padding: '10px 12px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 8, color: BRAND.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }
+
+  const handleLogin = async () => {
+    if (!name.trim() || !password.trim()) { setError('Enter name and password'); return }
+    setLoading(true); setError('')
+    const { data, error: err } = await supabase.from('users').select('*').eq('name_lower', name.trim().toLowerCase()).single()
+    if (err || !data) { setError('User not found. Register first.'); setLoading(false); return }
+    if (data.password !== password) { setError('Wrong password'); setLoading(false); return }
+    onLogin({ name: data.name, company: data.company, role: data.role, id: data.id })
+    setLoading(false)
+  }
+
+  const handleRegister = async () => {
+    if (!name.trim() || !password.trim() || !inviteCode.trim()) { setError('Fill in all fields'); return }
+    if (password.trim().length < 4) { setError('Password must be at least 4 characters'); return }
+    const company = INVITE_CODES[inviteCode.trim().toUpperCase()]
+    if (!company) { setError('Invalid invite code. Check the code your supervisor sent you.'); return }
+    setLoading(true); setError('')
+    const nameLower = name.trim().toLowerCase()
+    const { data: existing } = await supabase.from('users').select('id').eq('name_lower', nameLower).single()
+    if (existing) { setError('Name already taken. Log in instead.'); setLoading(false); return }
+    const { data, error: err } = await supabase.from('users').insert({ name: name.trim(), name_lower: nameLower, company, password: password.trim(), role: 'user' }).select().single()
+    if (err) { setError('Registration failed: ' + err.message); setLoading(false); return }
+    onLogin({ name: data.name, company: data.company, role: data.role, id: data.id })
+    setLoading(false)
+  }
+
+  const handleKey = (e) => { if (e.key === 'Enter') { mode === 'login' ? handleLogin() : handleRegister() } }
 
   return (
     <div style={{ minHeight: '100vh', background: BRAND.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -39,15 +72,24 @@ function LoginScreen({ onLogin }) {
           <div style={{ width: 36, height: 36, background: BRAND.primary, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>CS</div>
           <span style={{ color: BRAND.text, fontWeight: 700, fontSize: 18 }}>Moxy Hotel</span>
         </div>
-        <p style={{ color: BRAND.textMuted, fontSize: 13, marginBottom: 24 }}>Stair Landing Tracker</p>
+        <p style={{ color: BRAND.textMuted, fontSize: 13, marginBottom: 20 }}>Stair Landing Tracker</p>
+        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderRadius: 8, overflow: 'hidden', border: `1px solid ${BRAND.cardBorder}` }}>
+          <button onClick={() => { setMode('login'); setError('') }} style={{ flex: 1, padding: '8px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: mode === 'login' ? BRAND.primary : BRAND.bg, color: mode === 'login' ? '#fff' : BRAND.textMuted }}>Log In</button>
+          <button onClick={() => { setMode('register'); setError('') }} style={{ flex: 1, padding: '8px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: mode === 'register' ? BRAND.primary : BRAND.bg, color: mode === 'register' ? '#fff' : BRAND.textMuted }}>Register</button>
+        </div>
         <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>YOUR NAME</label>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Shane" style={{ width: '100%', padding: '10px 12px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 8, color: BRAND.text, fontSize: 14, marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
-        <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>COMPANY</label>
-        <select value={company} onChange={e => setCompany(e.target.value)} style={{ width: '100%', padding: '10px 12px', background: BRAND.bg, border: `1px solid ${BRAND.cardBorder}`, borderRadius: 8, color: BRAND.text, fontSize: 14, marginBottom: 24, outline: 'none', boxSizing: 'border-box' }}>
-          {companies.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button onClick={() => { if (name.trim()) onLogin(name.trim(), company) }} disabled={!name.trim()} style={{ width: '100%', padding: '12px', background: name.trim() ? BRAND.primary : '#555', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: name.trim() ? 'pointer' : 'not-allowed' }}>
-          Enter
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Shane" style={{ ...inputStyle, marginBottom: 16 }} onKeyDown={handleKey} />
+        <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>PASSWORD</label>
+        <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder={mode === 'register' ? 'Create a password (min 4 chars)' : 'Enter your password'} style={{ ...inputStyle, marginBottom: 16 }} onKeyDown={handleKey} />
+        {mode === 'register' && (
+          <>
+            <label style={{ color: BRAND.textMuted, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>INVITE CODE</label>
+            <input value={inviteCode} onChange={e => setInviteCode(e.target.value)} placeholder="Enter code from your supervisor" style={{ ...inputStyle, marginBottom: 16 }} onKeyDown={handleKey} />
+          </>
+        )}
+        {error && <p style={{ color: BRAND.red, fontSize: 13, marginBottom: 12 }}>{error}</p>}
+        <button onClick={mode === 'login' ? handleLogin : handleRegister} disabled={loading} style={{ width: '100%', padding: '12px', background: BRAND.primary, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+          {loading ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Register'}
         </button>
       </div>
     </div>
@@ -60,7 +102,6 @@ function Header({ user, landings, activeTab, setActiveTab, onLogout }) {
   const poured = landings.filter(l => l.pour_complete).length
   const notStarted = landings.length - shored - steel - poured
   const tabs = ['Diagram', 'Table', 'Activity', 'PDF']
-
   return (
     <div style={{ background: BRAND.card, borderBottom: `1px solid ${BRAND.cardBorder}`, padding: '0 20px', display: 'flex', alignItems: 'center', height: 56, gap: 20, position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -79,9 +120,7 @@ function Header({ user, landings, activeTab, setActiveTab, onLogout }) {
       <div style={{ flex: 1 }} />
       <div style={{ display: 'flex', gap: 4 }}>
         {tabs.map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? BRAND.primary : 'transparent', color: activeTab === t ? '#fff' : BRAND.textMuted }}>
-            {t}
-          </button>
+          <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? BRAND.primary : 'transparent', color: activeTab === t ? '#fff' : BRAND.textMuted }}>{t}</button>
         ))}
       </div>
       <button onClick={onLogout} style={{ padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
@@ -100,45 +139,35 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      const url = ev.target.result
-      setDrawingUrl(url)
-      localStorage.setItem('moxy_drawing', url)
-    }
+    reader.onload = (ev) => { setDrawingUrl(ev.target.result); localStorage.setItem('moxy_drawing', ev.target.result) }
     reader.readAsDataURL(file)
   }
 
-  useEffect(() => {
-    const saved = localStorage.getItem('moxy_drawing')
-    if (saved) setDrawingUrl(saved)
-  }, [])
+  useEffect(() => { const saved = localStorage.getItem('moxy_drawing'); if (saved) setDrawingUrl(saved) }, [])
 
   const handleMouseDown = (e, id) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault(); e.stopPropagation()
     const landing = landings.find(l => l.id === id)
     if (!landing || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const mouseXPct = ((e.clientX - rect.left) / rect.width) * 100
-    const mouseYPct = ((e.clientY - rect.top) / rect.height) * 100
+    const mxp = ((e.clientX - rect.left) / rect.width) * 100
+    const myp = ((e.clientY - rect.top) / rect.height) * 100
     setDragging(id)
-    setDragOffset({ x: mouseXPct - (landing.pos_x || 50), y: mouseYPct - (landing.pos_y || 50) })
+    setDragOffset({ x: mxp - (landing.pos_x || 50), y: myp - (landing.pos_y || 50) })
   }
 
   const handleMouseMove = useCallback((e) => {
     if (!dragging || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const newX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
-    const newY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
-    setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: newX, pos_y: newY } : l))
+    const nx = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
+    const ny = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
+    setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: nx, pos_y: ny } : l))
   }, [dragging, dragOffset])
 
   const handleMouseUp = useCallback(async () => {
     if (!dragging) return
     const landing = landings.find(l => l.id === dragging)
-    if (landing) {
-      await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
-    }
+    if (landing) await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
     setDragging(null)
   }, [dragging, landings])
 
@@ -156,10 +185,10 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
     const landing = landings.find(l => l.id === id)
     if (!landing || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    const mouseXPct = ((touch.clientX - rect.left) / rect.width) * 100
-    const mouseYPct = ((touch.clientY - rect.top) / rect.height) * 100
+    const mxp = ((touch.clientX - rect.left) / rect.width) * 100
+    const myp = ((touch.clientY - rect.top) / rect.height) * 100
     setDragging(id)
-    setDragOffset({ x: mouseXPct - (landing.pos_x || 50), y: mouseYPct - (landing.pos_y || 50) })
+    setDragOffset({ x: mxp - (landing.pos_x || 50), y: myp - (landing.pos_y || 50) })
   }
 
   useEffect(() => {
@@ -169,15 +198,13 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
       const touch = e.touches[0]
       if (!containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
-      const newX = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
-      const newY = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
-      setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: newX, pos_y: newY } : l))
+      const nx = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100 - dragOffset.x))
+      const ny = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100 - dragOffset.y))
+      setLandings(prev => prev.map(l => l.id === dragging ? { ...l, pos_x: nx, pos_y: ny } : l))
     }
     const onTouchEnd = async () => {
       const landing = landings.find(l => l.id === dragging)
-      if (landing) {
-        await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
-      }
+      if (landing) await supabase.from('landings').update({ pos_x: landing.pos_x, pos_y: landing.pos_y }).eq('id', landing.id)
       setDragging(null)
     }
     window.addEventListener('touchmove', onTouchMove, { passive: false })
@@ -206,22 +233,14 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
             const color = getStatusColor(landing)
             return (
               <div key={landing.id} onMouseDown={(e) => handleMouseDown(e, landing.id)} onTouchStart={(e) => handleTouchStart(e, landing.id)} style={{
-                position: 'absolute',
-                left: `${landing.pos_x || 50}%`,
-                top: `${landing.pos_y || 50}%`,
-                transform: 'translate(-50%, -50%)',
-                width: 26, height: 26, borderRadius: '50%',
-                background: color,
+                position: 'absolute', left: `${landing.pos_x || 50}%`, top: `${landing.pos_y || 50}%`, transform: 'translate(-50%, -50%)',
+                width: 26, height: 26, borderRadius: '50%', background: color,
                 border: dragging === landing.id ? '3px solid #fff' : '2px solid rgba(255,255,255,0.8)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'grab',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab',
                 zIndex: dragging === landing.id ? 999 : 10,
                 boxShadow: dragging === landing.id ? '0 0 12px rgba(0,0,0,0.5)' : '0 1px 4px rgba(0,0,0,0.4)',
-                fontSize: 11, fontWeight: 800, color: '#fff',
-                userSelect: 'none', touchAction: 'none',
-              }}>
-                {landing.number}
-              </div>
+                fontSize: 11, fontWeight: 800, color: '#fff', userSelect: 'none', touchAction: 'none',
+              }}>{landing.number}</div>
             )
           })}
         </div>
@@ -233,12 +252,11 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl })
 function TableView({ landings, user, onUpdate }) {
   const handleToggle = async (landing, field) => {
     const newVal = !landing[`${field}_complete`]
-    const updates = {
+    await supabase.from('landings').update({
       [`${field}_complete`]: newVal,
       [`${field}_date`]: newVal ? new Date().toISOString() : null,
       [`${field}_by`]: newVal ? `${user.name} (${user.company})` : null,
-    }
-    await supabase.from('landings').update(updates).eq('id', landing.id)
+    }).eq('id', landing.id)
     await supabase.from('activity_log').insert({
       user_name: user.name, company: user.company,
       action: newVal ? `Completed ${field}` : `Unchecked ${field}`,
@@ -288,7 +306,7 @@ function TableView({ landings, user, onUpdate }) {
 
 function ActivityView({ logs }) {
   const [filter, setFilter] = useState('All')
-  const companies = ['All', 'City Scaffold', 'CMP Construction', 'Dominion Constructors', 'Nauhria']
+  const companies = ['All', ...COMPANIES]
   const filtered = filter === 'All' ? logs : logs.filter(l => l.company === filter)
 
   const exportCSV = () => {
@@ -296,8 +314,7 @@ function ActivityView({ logs }) {
     const rows = filtered.map(l => `"${new Date(l.created_at).toLocaleString('en-NZ')}","${l.user_name}","${l.company}","${l.action}","${l.details}"`).join('\n')
     const blob = new Blob([header + rows], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `moxy_activity_${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    const a = document.createElement('a'); a.href = url; a.download = `moxy_activity_${new Date().toISOString().split('T')[0]}.csv`; a.click()
   }
 
   return (
@@ -341,41 +358,27 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('Diagram')
   const [drawingUrl, setDrawingUrl] = useState('')
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem('moxy_user')
-    if (saved) setUser(JSON.parse(saved))
-  }, [])
+  useEffect(() => { const saved = sessionStorage.getItem('moxy_user'); if (saved) setUser(JSON.parse(saved)) }, [])
 
-  const loadLandings = async () => {
-    const { data } = await supabase.from('landings').select('*').order('number')
-    if (data) setLandings(data)
-  }
-
-  const loadLogs = async () => {
-    const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200)
-    if (data) setLogs(data)
-  }
+  const loadLandings = async () => { const { data } = await supabase.from('landings').select('*').order('number'); if (data) setLandings(data) }
+  const loadLogs = async () => { const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200); if (data) setLogs(data) }
 
   useEffect(() => {
     if (!user) return
-    loadLandings()
-    loadLogs()
+    loadLandings(); loadLogs()
     const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
     const activitySub = supabase.channel('activity-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadLogs()).subscribe()
     return () => { supabase.removeChannel(landingSub); supabase.removeChannel(activitySub) }
   }, [user])
 
-  const handleLogin = (name, company) => {
-    const u = { name, company }
-    setUser(u)
-    sessionStorage.setItem('moxy_user', JSON.stringify(u))
-  }
+  const handleLogin = (userData) => { setUser(userData); sessionStorage.setItem('moxy_user', JSON.stringify(userData)) }
+  const handleLogout = () => { setUser(null); sessionStorage.removeItem('moxy_user') }
 
   if (!user) return <LoginScreen onLogin={handleLogin} />
 
   return (
     <div style={{ minHeight: '100vh', background: BRAND.bg, color: BRAND.text, display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <Header user={user} landings={landings} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => { setUser(null); sessionStorage.removeItem('moxy_user') }} />
+      <Header user={user} landings={landings} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
       {activeTab === 'Diagram' && <DiagramView landings={landings} setLandings={setLandings} user={user} drawingUrl={drawingUrl} setDrawingUrl={setDrawingUrl} />}
       {activeTab === 'Table' && <TableView landings={landings} user={user} onUpdate={loadLandings} />}
       {activeTab === 'Activity' && <ActivityView logs={logs} />}
