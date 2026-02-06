@@ -245,16 +245,31 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
   const fileInputRef = useRef(null)
   const admin = isAdmin(user)
 
-  const handleUpload = (e) => {
+  const handleUpload = async (e) => {
     if (!admin) return
     const file = e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => { setDrawingUrl(ev.target.result); localStorage.setItem('moxy_drawing', ev.target.result) }
-    reader.readAsDataURL(file)
+    // Upload to Supabase storage
+    const fileName = `stairwell_drawing.${file.name.split('.').pop()}`
+    const { error } = await supabase.storage.from('drawings').upload(fileName, file, { upsert: true })
+    if (error) { alert('Upload failed: ' + error.message); return }
+    const { data: urlData } = supabase.storage.from('drawings').getPublicUrl(fileName)
+    if (urlData?.publicUrl) {
+      const urlWithCache = urlData.publicUrl + '?t=' + Date.now()
+      setDrawingUrl(urlWithCache)
+      // Save the URL in settings table so all devices load it
+      await supabase.from('settings').upsert({ key: 'drawing_url', value: urlWithCache }, { onConflict: 'key' })
+    }
   }
 
-  useEffect(() => { const saved = localStorage.getItem('moxy_drawing'); if (saved) setDrawingUrl(saved) }, [])
+  useEffect(() => {
+    // Load drawing URL from settings (shared across all devices)
+    const loadDrawing = async () => {
+      const { data } = await supabase.from('settings').select('value').eq('key', 'drawing_url').single()
+      if (data?.value) setDrawingUrl(data.value)
+    }
+    loadDrawing()
+  }, [])
 
   const handleMouseDown = (e, id) => {
     if (!admin) return
