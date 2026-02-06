@@ -389,11 +389,52 @@ function DiagramView({ landings, setLandings, user, drawingUrl, setDrawingUrl, t
 }
 
 // ─── GENERIC TABLE VIEW (used for both landings and lobby slabs) ──
-function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, notes, onNotesUpdate }) {
+function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, notes, onNotesUpdate, photos, onPhotosUpdate }) {
   const B = THEMES[theme]
   const isLandings = tableName === 'landings'
   const itemType = isLandings ? 'landing' : 'lobby_slab'
   const [newNote, setNewNote] = useState({})
+  const [viewingPhotos, setViewingPhotos] = useState(null)
+  const photoInputRefs = useRef({})
+
+  const getItemPhotos = (itemId, field) => {
+    return (photos || []).filter(p => p.item_type === itemType && p.item_id === itemId && p.field === field)
+  }
+
+  const handlePhotoUpload = async (item, field, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const ext = file.name.split('.').pop()
+    const fileName = `${itemType}_${item.number}_${field}_${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('photos').upload(fileName, file, { upsert: false })
+    if (error) { alert('Upload failed: ' + error.message); return }
+    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName)
+    if (urlData?.publicUrl) {
+      await supabase.from('photos').insert({
+        item_type: itemType,
+        item_id: item.id,
+        field,
+        file_name: fileName,
+        url: urlData.publicUrl,
+        uploaded_by: `${user.name} (${user.company})`,
+      })
+      await supabase.from('activity_log').insert({
+        user_name: user.name, company: user.company,
+        action: `Photo uploaded (${field})`,
+        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} photo added`,
+        device_info: navigator.userAgent?.substring(0, 100) || '',
+      })
+      onPhotosUpdate()
+    }
+    e.target.value = ''
+  }
+
+  const handleDeletePhoto = async (photo) => {
+    if (!isAdmin(user)) return
+    await supabase.storage.from('photos').remove([photo.file_name])
+    await supabase.from('photos').delete().eq('id', photo.id)
+    onPhotosUpdate()
+  }
 
   const handleToggle = async (item, field) => {
     if (!canEdit(user, field)) return
@@ -500,10 +541,21 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                 <td style={{ padding: '6px', color: B.text, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{level}</td>
                 {['shore', 'steel', 'pour'].map(field => {
                   const allowed = canEdit(user, field)
+                  const fieldPhotos = getItemPhotos(l.id, field)
+                  const refKey = `${l.id}-${field}`
                   return [
                     <td key={`${l.id}-${field}-cb`} style={{ padding: '6px', textAlign: 'center' }}>
-                      <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
-                        style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green, opacity: allowed ? 1 : 0.4 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                        <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
+                          style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green, opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
+                        {allowed && (
+                          <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>
+                        )}
+                        {fieldPhotos.length > 0 && (
+                          <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '1px 5px', cursor: 'pointer' }} title="View photos">{fieldPhotos.length}</button>
+                        )}
+                      </div>
                     </td>,
                     <td key={`${l.id}-${field}-date`} style={{ padding: '6px' }}>
                       <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
@@ -570,11 +622,42 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
           ))}
         </tbody>
       </table>
+
+      {/* Photo viewer modal */}
+      {viewingPhotos && (() => {
+        const vp = viewingPhotos
+        const vpPhotos = getItemPhotos(vp.itemId, vp.field)
+        return (
+          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewingPhotos(null)}>
+            <div style={{ background: B.card, borderRadius: 12, padding: 20, maxWidth: 700, maxHeight: '85vh', overflow: 'auto', width: '90%' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ color: B.text, fontWeight: 700, fontSize: 16 }}>{isLandings ? 'Landing' : 'Slab'} {vp.number} — {vp.field} photos</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setViewingPhotos(null)} style={{ background: 'none', border: 'none', color: B.textMuted, fontSize: 22, cursor: 'pointer' }}>✕</button>
+              </div>
+              {vpPhotos.length === 0 && <p style={{ color: B.textMuted, fontSize: 13 }}>No photos yet</p>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                {vpPhotos.map(p => (
+                  <div key={p.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
+                    <a href={p.url} target="_blank" rel="noopener noreferrer">
+                      <img src={p.url} alt="" style={{ width: '100%', display: 'block', cursor: 'pointer' }} />
+                    </a>
+                    <div style={{ padding: '6px 8px', fontSize: 10, color: B.textMuted }}>
+                      {p.uploaded_by} — {formatNZDate(p.created_at)}
+                    </div>
+                    {isAdmin(user) && (
+                      <button onClick={() => handleDeletePhoto(p)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220,38,38,0.9)', color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer' }}>🗑️</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
-
-// ─── ACTIVITY VIEW ──────────────────────────────────────────────
 function ActivityView({ logs, theme, onDelete }) {
   const B = THEMES[theme]
   const [filter, setFilter] = useState('All')
@@ -914,6 +997,7 @@ export default function Home() {
   const [notes, setNotes] = useState([])
   const [chatMessages, setChatMessages] = useState([])
   const [registeredUsers, setRegisteredUsers] = useState([])
+  const [photos, setPhotos] = useState([])
   const [activeTab, setActiveTab] = useState('Diagram')
   const [drawingUrl, setDrawingUrl] = useState('')
   const [theme, setTheme] = useState('dark')
@@ -936,16 +1020,18 @@ export default function Home() {
   const loadNotes = async () => { const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: true }); if (data) setNotes(data) }
   const loadChat = async () => { const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }); if (data) setChatMessages(data) }
   const loadUsers = async () => { const { data } = await supabase.from('users').select('name, company').order('name'); if (data) setRegisteredUsers(data) }
+  const loadPhotos = async () => { const { data } = await supabase.from('photos').select('*').order('created_at', { ascending: true }); if (data) setPhotos(data) }
 
   useEffect(() => {
     if (!user) return
-    loadLandings(); loadLobbySlabs(); loadLogs(); loadNotes(); loadChat(); loadUsers()
+    loadLandings(); loadLobbySlabs(); loadLogs(); loadNotes(); loadChat(); loadUsers(); loadPhotos()
     const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
     const lobbySub = supabase.channel('lobby-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_slabs' }, () => loadLobbySlabs()).subscribe()
     const activitySub = supabase.channel('activity-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadLogs()).subscribe()
     const notesSub = supabase.channel('notes-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, () => loadNotes()).subscribe()
     const chatSub = supabase.channel('chat-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => loadChat()).subscribe()
-    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub) }
+    const photosSub = supabase.channel('photos-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, () => loadPhotos()).subscribe()
+    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub); supabase.removeChannel(photosSub) }
   }, [user])
 
   const handleLogin = (userData) => { setUser(userData); sessionStorage.setItem('moxy_user', JSON.stringify(userData)) }
@@ -966,12 +1052,12 @@ export default function Home() {
         <DiagramView landings={landings} setLandings={setLandings} user={user} drawingUrl={drawingUrl} setDrawingUrl={setDrawingUrl} theme={theme} />
       )}
       {tracker === 'landings' && activeTab === 'Table' && (
-        <GenericTableView items={landings} user={user} tableName="landings" labelFn={landingLabelFn} theme={theme} onUpdate={loadLandings} notes={notes} onNotesUpdate={loadNotes} />
+        <GenericTableView items={landings} user={user} tableName="landings" labelFn={landingLabelFn} theme={theme} onUpdate={loadLandings} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} />
       )}
 
       {/* LOBBY SLABS */}
       {tracker === 'lobby' && activeTab === 'Table' && (
-        <GenericTableView items={lobbySlabs} user={user} tableName="lobby_slabs" labelFn={lobbyLabelFn} theme={theme} onUpdate={loadLobbySlabs} notes={notes} onNotesUpdate={loadNotes} />
+        <GenericTableView items={lobbySlabs} user={user} tableName="lobby_slabs" labelFn={lobbyLabelFn} theme={theme} onUpdate={loadLobbySlabs} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} />
       )}
 
       {/* ACTIVITY (shared) */}
