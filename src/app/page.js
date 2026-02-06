@@ -218,45 +218,69 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
 
   return (
     <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, position: 'sticky', top: 0, zIndex: 100 }}>
-      {/* Top row */}
-      <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>CS</div>
+      {/* Desktop header - single row */}
+      <div className="desktop-only" style={{ padding: '0 16px', display: 'flex', alignItems: 'center', minHeight: 56, gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
           <div>
-            <div style={{ color: B.text, fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Moxy Hotel</div>
-            <div style={{ color: B.textMuted, fontSize: 10 }}>{user.name}{isAdmin(user) ? ' — Admin' : ''}</div>
+            <div style={{ color: B.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel</div>
+            <div style={{ color: B.textMuted, fontSize: 11 }}>{user.name} ({user.company}){isAdmin(user) ? ' — Admin' : ''}</div>
           </div>
         </div>
-        <div style={{ flex: 1 }} />
-        {/* Status counts - compact */}
-        <div className="desktop-only" style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
+          <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Stair Landings</button>
+          <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby Slabs</button>
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
           <span style={{ color: B.red, fontWeight: 700, fontSize: 13 }}>{notStarted} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Not Started</span></span>
           <span style={{ color: B.blue, fontWeight: 700, fontSize: 13 }}>{shored} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Shored</span></span>
           <span style={{ color: B.yellow, fontWeight: 700, fontSize: 13 }}>{steel} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Steel</span></span>
           <span style={{ color: B.green, fontWeight: 700, fontSize: 13 }}>{poured} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Poured</span></span>
         </div>
-        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={{ padding: '4px 8px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 13, cursor: 'pointer', color: B.text }}>
-          {theme === 'dark' ? '☀️' : '🌙'}
-        </button>
-        <button onClick={onLogout} style={{ padding: '4px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
-      </div>
-      {/* Bottom row - tabs + tracker toggle */}
-      <div style={{ padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
-          <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Landings</button>
-          <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby</button>
-        </div>
-        <div style={{ display: 'flex', gap: 3 }}>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', gap: 4 }}>
           {tabs.map(t => (
-            <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? B.primary : 'transparent', color: activeTab === t ? '#fff' : B.textMuted }}>{t}</button>
+            <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? B.primary : 'transparent', color: activeTab === t ? '#fff' : B.textMuted }}>{t}</button>
           ))}
         </div>
-        {/* Mobile status counts */}
-        <div className="mobile-only" style={{ display: 'none', gap: 6, marginLeft: 'auto' }}>
-          <span style={{ color: B.red, fontWeight: 700, fontSize: 12 }}>{notStarted}</span>
-          <span style={{ color: B.blue, fontWeight: 700, fontSize: 12 }}>{shored}</span>
-          <span style={{ color: B.yellow, fontWeight: 700, fontSize: 12 }}>{steel}</span>
-          <span style={{ color: B.green, fontWeight: 700, fontSize: 12 }}>{poured}</span>
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={{ padding: '5px 10px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 14, cursor: 'pointer', color: B.text }}>
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+        <button onClick={onLogout} style={{ padding: '5px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+      </div>
+
+      {/* Mobile header - two rows */}
+      <div className="mobile-only" style={{ display: 'none' }}>
+        <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>CS</div>
+            <div>
+              <div style={{ color: B.text, fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Moxy Hotel</div>
+              <div style={{ color: B.textMuted, fontSize: 10 }}>{user.name}{isAdmin(user) ? ' — Admin' : ''}</div>
+            </div>
+          </div>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={{ padding: '4px 8px', background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 13, cursor: 'pointer', color: B.text }}>
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <button onClick={onLogout} style={{ padding: '4px 10px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>Logout</button>
+        </div>
+        <div style={{ padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
+            <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Landings</button>
+            <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby</button>
+          </div>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {tabs.map(t => (
+              <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: activeTab === t ? B.primary : 'transparent', color: activeTab === t ? '#fff' : B.textMuted }}>{t}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+            <span style={{ color: B.red, fontWeight: 700, fontSize: 12 }}>{notStarted}</span>
+            <span style={{ color: B.blue, fontWeight: 700, fontSize: 12 }}>{shored}</span>
+            <span style={{ color: B.yellow, fontWeight: 700, fontSize: 12 }}>{steel}</span>
+            <span style={{ color: B.green, fontWeight: 700, fontSize: 12 }}>{poured}</span>
+          </div>
         </div>
       </div>
     </div>
