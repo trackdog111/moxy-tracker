@@ -547,15 +547,16 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                       {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: '0 2px', flexShrink: 0, opacity: 0.6 }} title="Delete note">✕</button>}
                     </div>
                   ))}
-                  <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0 }}>
-                    <input
+                  <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0, alignItems: 'flex-end' }}>
+                    <textarea
                       value={newNote[l.id] || ''}
-                      onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }}
+                      onChange={(e) => { setNewNote(prev => ({ ...prev, [l.id]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(l.id); e.target.style.height = 'auto' } }}
                       placeholder="Add note..."
-                      style={{ flex: 1, padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
+                      rows={1}
+                      style={{ flex: 1, padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box', resize: 'none', overflow: 'hidden', lineHeight: 1.4, fontFamily: 'inherit' }}
                     />
-                    <button onClick={() => handleAddNote(l.id)} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+</button>
+                    <button onClick={() => { handleAddNote(l.id) }} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+</button>
                   </div>
                 </td>
               </tr>
@@ -626,15 +627,16 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                <input
+              <div style={{ display: 'flex', gap: 4, marginTop: 6, alignItems: 'flex-end' }}>
+                <textarea
                   value={newNote[l.id] || ''}
-                  onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }}
+                  onChange={(e) => { setNewNote(prev => ({ ...prev, [l.id]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(l.id); e.target.style.height = 'auto' } }}
                   placeholder="Add note..."
-                  style={{ flex: 1, padding: '6px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                  rows={1}
+                  style={{ flex: 1, padding: '6px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', resize: 'none', overflow: 'hidden', lineHeight: 1.4, fontFamily: 'inherit' }}
                 />
-                <button onClick={() => handleAddNote(l.id)} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+</button>
+                <button onClick={() => { handleAddNote(l.id) }} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+</button>
               </div>
             </div>
           )
