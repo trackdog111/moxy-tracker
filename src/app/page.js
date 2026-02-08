@@ -178,7 +178,7 @@ function LoginScreen({ onLogin }) {
     <div style={{ minHeight: '100vh', background: B.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 12, padding: 40, width: 380 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 36, height: 36, background: B.primary, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>CS</div>
+          <div style={{ width: 36, height: 36, background: B.primary, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>MH</div>
           <span style={{ color: B.text, fontWeight: 700, fontSize: 18 }}>Moxy Hotel</span>
         </div>
         <p style={{ color: B.textMuted, fontSize: 13, marginBottom: 20 }}>Stair Landing & Lobby Slab Tracker</p>
@@ -222,7 +222,7 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
       {/* Desktop header - single row */}
       <div className="desktop-only" style={{ padding: '0 16px', display: 'flex', alignItems: 'center', minHeight: 56, gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
+          <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>MH</div>
           <div>
             <div style={{ color: B.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel</div>
             <div style={{ color: B.textMuted, fontSize: 11 }}>{user.name} ({user.company}){isAdmin(user) ? ' — Admin' : ''}</div>
@@ -254,7 +254,7 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
       <div className="mobile-only" style={{ }}>
         <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>CS</div>
+            <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>MH</div>
             <div>
               <div style={{ color: B.text, fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Moxy Hotel</div>
               <div style={{ color: B.textMuted, fontSize: 10 }}>{user.name}{isAdmin(user) ? ' — Admin' : ''}</div>
@@ -419,8 +419,23 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
     if (value) {
       await supabase.from('activity_log').insert({
         user_name: user.name, company: user.company,
-        action: `Set ${field} date`,
-        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} date set to ${value}`,
+        action: `Set ${field} completion date`,
+        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} completion date set to ${value}`,
+        device_info: navigator.userAgent?.substring(0, 100) || '',
+      })
+    }
+    onUpdate()
+  }
+
+  const handleStartDate = async (item, field, value) => {
+    if (!canEdit(user, field)) return
+    const isoVal = value ? new Date(value).toISOString() : null
+    await supabase.from(tableName).update({ [`${field}_start_date`]: isoVal }).eq('id', item.id)
+    if (value) {
+      await supabase.from('activity_log').insert({
+        user_name: user.name, company: user.company,
+        action: `Set ${field} start date`,
+        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} start date set to ${value}`,
         device_info: navigator.userAgent?.substring(0, 100) || '',
       })
     }
@@ -483,7 +498,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
       <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-            {['#', 'LEVEL', 'SHORE', 'SHORE DATE/TIME', 'SHORE BY', 'STEEL', 'STEEL DATE/TIME', 'STEEL BY', 'POUR', 'POUR DATE/TIME', 'POUR BY', 'NOTES'].map(h => (
+            {['#', 'LEVEL', 'SHORE', 'SHORE START', 'SHORE COMPLETE', 'SHORE BY', 'STEEL', 'STEEL START', 'STEEL COMPLETE', 'STEEL BY', 'POUR', 'POUR START', 'POUR COMPLETE', 'POUR BY', 'NOTES'].map(h => (
               <th key={h} style={{ color: B.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 6px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
@@ -514,6 +529,9 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                           <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '1px 5px', cursor: 'pointer' }} title="View photos">{fieldPhotos.length}</button>
                         )}
                       </div>
+                    </td>,
+                    <td key={`${l.id}-${field}-start`} style={{ padding: '6px' }}>
+                      <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_start_date`])} onBlur={(e) => handleStartDate(l, field, e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
                     </td>,
                     <td key={`${l.id}-${field}-date`} style={{ padding: '6px' }}>
                       <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
@@ -584,7 +602,12 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
-                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0 }}>Date/Time:</span>
+                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0, width: 36 }}>Start:</span>
+                      <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_start_date`])} onBlur={(e) => handleStartDate(l, field, e.target.value)} disabled={!allowed}
+                        style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
+                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0, width: 36 }}>Done:</span>
                       <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed}
                         style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
                     </div>
@@ -623,9 +646,9 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
         <thead>
           <tr>
             <th>#</th><th>Level</th><th>Status</th>
-            <th>Shore ✓</th><th>Shore Date</th><th>Shore By</th>
-            <th>Steel ✓</th><th>Steel Date</th><th>Steel By</th>
-            <th>Pour ✓</th><th>Pour Date</th><th>Pour By</th>
+            <th>Shore ✓</th><th>Shore Start</th><th>Shore Done</th><th>Shore By</th>
+            <th>Steel ✓</th><th>Steel Start</th><th>Steel Done</th><th>Steel By</th>
+            <th>Pour ✓</th><th>Pour Start</th><th>Pour Done</th><th>Pour By</th>
             <th>Notes</th>
           </tr>
         </thead>
@@ -639,12 +662,15 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                 {getStatusText(l)}
               </td>
               <td style={{ textAlign: 'center' }}>{l.shore_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.shore_start_date)}</td>
               <td>{formatNZDate(l.shore_date)}</td>
               <td>{l.shore_by || '-'}</td>
               <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.steel_start_date)}</td>
               <td>{formatNZDate(l.steel_date)}</td>
               <td>{l.steel_by || '-'}</td>
               <td style={{ textAlign: 'center' }}>{l.pour_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.pour_start_date)}</td>
               <td>{formatNZDate(l.pour_date)}</td>
               <td>{l.pour_by || '-'}</td>
               <td>{getItemNotes(l.id).map(n => `${n.user_name}: ${n.message}`).join(' | ') || ''}</td>
