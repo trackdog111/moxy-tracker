@@ -26,11 +26,13 @@ const INVITE_CODES = {
   'CMP-7K2N': 'CMP Construction',
   'DOM-3P9W': 'Dominion Constructors',
   'NAU-5R6J': 'Nauhria',
+  'GHOST-9X3Q': 'Management',
 }
 
-const COMPANIES = [...new Set(Object.values(INVITE_CODES))]
+const COMPANIES = [...new Set(Object.values(INVITE_CODES))].filter(c => c !== 'Management')
 
 const isAdmin = (user) => user && user.name.toLowerCase() === 'shane' && user.company === 'City Scaffold'
+const isGhost = (user) => user && user.role === 'ghost'
 
 const TRADE_PERMISSIONS = {
   'City Scaffold': ['shore'],
@@ -44,9 +46,11 @@ const COMPANY_COLORS = {
   'CMP Construction': '#F97316',
   'Dominion Constructors': '#8B5CF6',
   'Nauhria': '#22C55E',
+  'Management': '#64748b',
 }
 
 function canEdit(user, field) {
+  if (isGhost(user)) return false
   if (isAdmin(user)) return true
   const allowed = TRADE_PERMISSIONS[user.company] || []
   return allowed.includes(field)
@@ -166,7 +170,8 @@ function LoginScreen({ onLogin }) {
     const nameLower = name.trim().toLowerCase()
     const { data: existing } = await supabase.from('users').select('id').eq('name_lower', nameLower).single()
     if (existing) { setError('Name already taken. Log in instead.'); setLoading(false); return }
-    const { data, error: err } = await supabase.from('users').insert({ name: name.trim(), name_lower: nameLower, company, password: password.trim(), role: 'user' }).select().single()
+    const role = inviteCode.trim().toUpperCase() === 'GHOST-9X3Q' ? 'ghost' : 'user'
+    const { data, error: err } = await supabase.from('users').insert({ name: name.trim(), name_lower: nameLower, company, password: password.trim(), role }).select().single()
     if (err) { setError('Registration failed: ' + err.message); setLoading(false); return }
     onLogin({ name: data.name, company: data.company, role: data.role, id: data.id })
     setLoading(false)
@@ -214,8 +219,8 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
   const poured = items.filter(l => l.pour_complete).length
   const notStarted = items.length - shored - steel - poured
   const tabs = tracker === 'landings'
-    ? (isAdmin(user) ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Chat'])
-    : (isAdmin(user) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
+    ? ((isAdmin(user) || isGhost(user)) ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Chat'])
+    : ((isAdmin(user) || isGhost(user)) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
 
   return (
     <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, position: 'sticky', top: 0, zIndex: 100 }}>
@@ -225,7 +230,7 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
           <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
           <div>
             <div style={{ color: B.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel</div>
-            <div style={{ color: B.textMuted, fontSize: 11 }}>{user.name} ({user.company}){isAdmin(user) ? ' — Admin' : ''}</div>
+            <div style={{ color: B.textMuted, fontSize: 11 }}>{user.name}{isGhost(user) ? '' : ` (${user.company})`}{isAdmin(user) ? ' — Admin' : ''}</div>
           </div>
         </div>
         <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
@@ -578,6 +583,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                       {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: '0 2px', flexShrink: 0, opacity: 0.6 }} title="Delete note">✕</button>}
                     </div>
                   ))}
+                  {!isGhost(user) && (
                   <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0 }}>
                     <input
                       value={newNote[l.id] || ''}
@@ -588,6 +594,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                     />
                     <button onClick={() => handleAddNote(l.id)} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+</button>
                   </div>
+                  )}
                 </td>
               </tr>
             )
@@ -662,6 +669,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                   ))}
                 </div>
               )}
+              {!isGhost(user) && (
               <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
                 <input
                   value={newNote[l.id] || ''}
@@ -672,6 +680,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                 />
                 <button onClick={() => handleAddNote(l.id)} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+</button>
               </div>
+              )}
             </div>
           )
         })}
@@ -749,7 +758,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
     </div>
   )
 }
-function ActivityView({ logs, theme, onDelete }) {
+function ActivityView({ logs, theme, onDelete, user }) {
   const B = THEMES[theme]
   const [filter, setFilter] = useState('All')
   const companies = ['All', ...COMPANIES]
@@ -798,7 +807,7 @@ function ActivityView({ logs, theme, onDelete }) {
         <div style={{ flex: 1 }} />
         <button onClick={exportPDF} style={{ padding: '6px 14px', background: B.dark, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📄 Export PDF</button>
         <button onClick={exportCSV} style={{ padding: '6px 14px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📊 Export CSV</button>
-        <button onClick={handleClearAll} style={{ padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑️ Clear {filter === 'All' ? 'All' : filter}</button>
+        {isAdmin(user) && <button onClick={handleClearAll} style={{ padding: '6px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑️ Clear {filter === 'All' ? 'All' : filter}</button>}
       </div>
 
       {/* Screen table */}
@@ -820,7 +829,7 @@ function ActivityView({ logs, theme, onDelete }) {
               <td style={{ padding: '8px', color: B.text, fontSize: 12 }}>{l.action}</td>
               <td style={{ padding: '8px', color: B.textMuted, fontSize: 12 }}>{l.details}</td>
               <td style={{ padding: '8px', textAlign: 'center' }}>
-                <button onClick={() => handleDelete(l.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 12, padding: '2px 4px', opacity: 0.7 }} title="Delete">✕</button>
+                {isAdmin(user) && <button onClick={() => handleDelete(l.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 12, padding: '2px 4px', opacity: 0.7 }} title="Delete">✕</button>}
               </td>
             </tr>
           ))}
@@ -855,8 +864,8 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
   const [activeChannel, setActiveChannel] = useState('team')
   const chatEndRef = useRef(null)
 
-  // Get other users (not me)
-  const otherUsers = registeredUsers.filter(u => u.name !== user.name)
+  // Get other users (not me, not ghost)
+  const otherUsers = registeredUsers.filter(u => u.name !== user.name && u.role !== 'ghost')
 
   // Filter messages for current channel
   const channelMessages = messages.filter(m => {
@@ -1086,7 +1095,8 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
           </tbody>
         </table>
 
-        {/* Message input */}
+        {/* Message input - hidden for ghost */}
+        {!isGhost(user) && (
         <div className="no-print" style={{ padding: '12px 20px', background: B.card, borderTop: `1px solid ${B.cardBorder}`, display: 'flex', gap: 10 }}>
           <input
             value={msg}
@@ -1097,6 +1107,7 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
           />
           <button onClick={handleSend} style={{ padding: '10px 24px', background: B.primary, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Send</button>
         </div>
+        )}
       </div>
     </div>
     </div>
@@ -1134,7 +1145,7 @@ export default function Home() {
   const loadLogs = async () => { const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200); if (data) setLogs(data) }
   const loadNotes = async () => { const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: true }); if (data) setNotes(data) }
   const loadChat = async () => { const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }); if (data) setChatMessages(data) }
-  const loadUsers = async () => { const { data } = await supabase.from('users').select('name, company').order('name'); if (data) setRegisteredUsers(data) }
+  const loadUsers = async () => { const { data } = await supabase.from('users').select('name, company, role').order('name'); if (data) setRegisteredUsers(data) }
   const loadPhotos = async () => { const { data } = await supabase.from('photos').select('*').order('created_at', { ascending: true }); if (data) setPhotos(data) }
 
   useEffect(() => {
@@ -1177,7 +1188,7 @@ export default function Home() {
 
       {/* ACTIVITY (shared) */}
       {activeTab === 'Activity' && (
-        <ActivityView logs={logs} theme={theme} onDelete={loadLogs} />
+        <ActivityView logs={logs} theme={theme} onDelete={loadLogs} user={user} />
       )}
 
       {/* CHAT */}
