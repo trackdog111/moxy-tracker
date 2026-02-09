@@ -178,7 +178,7 @@ function LoginScreen({ onLogin }) {
     <div style={{ minHeight: '100vh', background: B.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 12, padding: 40, width: 380 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 36, height: 36, background: B.primary, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>MH</div>
+          <div style={{ width: 36, height: 36, background: B.primary, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>CS</div>
           <span style={{ color: B.text, fontWeight: 700, fontSize: 18 }}>Moxy Hotel</span>
         </div>
         <p style={{ color: B.textMuted, fontSize: 13, marginBottom: 20 }}>Stair Landing & Lobby Slab Tracker</p>
@@ -214,15 +214,15 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
   const poured = items.filter(l => l.pour_complete).length
   const notStarted = items.length - shored - steel - poured
   const tabs = tracker === 'landings'
-    ? (isAdmin(user) ? ['Diagram', 'Table', 'Analytics', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Analytics', 'Chat'])
-    : (isAdmin(user) ? ['Table', 'Analytics', 'Activity', 'Chat'] : ['Table', 'Analytics', 'Chat'])
+    ? (isAdmin(user) ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Chat'])
+    : (isAdmin(user) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
 
   return (
     <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, position: 'sticky', top: 0, zIndex: 100 }}>
       {/* Desktop header - single row */}
       <div className="desktop-only" style={{ padding: '0 16px', display: 'flex', alignItems: 'center', minHeight: 56, gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>MH</div>
+          <div style={{ width: 28, height: 28, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, color: '#fff' }}>CS</div>
           <div>
             <div style={{ color: B.text, fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Moxy Hotel</div>
             <div style={{ color: B.textMuted, fontSize: 11 }}>{user.name} ({user.company}){isAdmin(user) ? ' — Admin' : ''}</div>
@@ -254,7 +254,7 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
       <div className="mobile-only" style={{ }}>
         <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>MH</div>
+            <div style={{ width: 26, height: 26, background: B.primary, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, color: '#fff', flexShrink: 0 }}>CS</div>
             <div>
               <div style={{ color: B.text, fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Moxy Hotel</div>
               <div style={{ color: B.textMuted, fontSize: 10 }}>{user.name}{isAdmin(user) ? ' — Admin' : ''}</div>
@@ -399,7 +399,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
     const newVal = !item[`${field}_complete`]
     const updates = {
       [`${field}_complete`]: newVal,
-      [`${field}_by`]: newVal ? `${user.name} (${user.company})` : null,
+      [`${field}_by`]: newVal ? user.name : null,
     }
     if (!newVal) updates[`${field}_date`] = null
     await supabase.from(tableName).update(updates).eq('id', item.id)
@@ -419,26 +419,24 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
     if (value) {
       await supabase.from('activity_log').insert({
         user_name: user.name, company: user.company,
-        action: `Set ${field} completion date`,
-        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} completion date set to ${value}`,
+        action: `Set ${field} date`,
+        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} date set to ${value}`,
         device_info: navigator.userAgent?.substring(0, 100) || '',
       })
     }
     onUpdate()
   }
 
-  const handleStartDate = async (item, field, value) => {
-    if (!canEdit(user, field)) return
+  const handleSchedDate = async (item, trade, value) => {
+    if (!isAdmin(user)) return
     const isoVal = value ? new Date(value).toISOString() : null
-    await supabase.from(tableName).update({ [`${field}_start_date`]: isoVal }).eq('id', item.id)
-    if (value) {
-      await supabase.from('activity_log').insert({
-        user_name: user.name, company: user.company,
-        action: `Set ${field} start date`,
-        details: `${isLandings ? 'Landing' : 'Slab'} ${item.number} (${labelFn(item)}) - ${field} start date set to ${value}`,
-        device_info: navigator.userAgent?.substring(0, 100) || '',
-      })
-    }
+    await supabase.from(tableName).update({ [`${trade}_scheduled`]: isoVal }).eq('id', item.id)
+    onUpdate()
+  }
+
+  const handleRef = async (item, trade, value) => {
+    if (!isAdmin(user)) return
+    await supabase.from(tableName).update({ [`${trade}_ref`]: value || null }).eq('id', item.id)
     onUpdate()
   }
 
@@ -498,8 +496,8 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
       <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-            {['#', 'LEVEL', 'SHORE', 'SHORE START', 'SHORE COMPLETE', 'SHORE BY', 'STEEL', 'STEEL START', 'STEEL COMPLETE', 'STEEL BY', 'POUR', 'POUR START', 'POUR COMPLETE', 'POUR BY', 'NOTES'].map(h => (
-              <th key={h} style={{ color: B.textMuted, fontSize: 11, fontWeight: 600, padding: '10px 6px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+            {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES'].map((h, i) => (
+              <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -512,31 +510,64 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                   <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: getStatusColor(l, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{l.number}</span>
                 </td>
                 <td style={{ padding: '6px', color: B.text, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{level}</td>
-                {['shore', 'steel', 'pour'].map(field => {
+                <td style={{ padding: '4px' }}>
+                  <input type="date" defaultValue={l.shore_scheduled ? toLocalInput(l.shore_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'shore', e.target.value)} disabled={!isAdmin(user)}
+                    style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} />
+                </td>
+                <td style={{ padding: '4px' }}>
+                  <input type="text" defaultValue={l.shore_ref || ''} onBlur={(e) => handleRef(l, 'shore', e.target.value)} disabled={!isAdmin(user)} placeholder="Email 5/2"
+                    style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, width: 80 }} />
+                </td>
+                {/* Shore trade cells */}
+                {(() => {
+                  const field = 'shore'
                   const allowed = canEdit(user, field)
                   const fieldPhotos = getItemPhotos(l.id, field)
                   const refKey = `${l.id}-${field}`
                   return [
-                    <td key={`${l.id}-${field}-cb`} style={{ padding: '6px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                        <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
-                          style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green, opacity: allowed ? 1 : 0.4 }} />
-                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
-                        {allowed && (
-                          <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>
-                        )}
-                        {fieldPhotos.length > 0 && (
-                          <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '1px 5px', cursor: 'pointer' }} title="View photos">{fieldPhotos.length}</button>
-                        )}
+                    <td key={`${l.id}-shore-cb`} style={{ padding: '4px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        <input type="checkbox" checked={!!l.shore_complete} onChange={() => handleToggle(l, 'shore')} disabled={!allowed}
+                          style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: B.blue, opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, 'shore', e)} style={{ display: 'none' }} />
+                        {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>}
+                        {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field: 'shore', number: l.number })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 8, fontWeight: 700, padding: '1px 4px', cursor: 'pointer' }}>{fieldPhotos.length}</button>}
                       </div>
                     </td>,
-                    <td key={`${l.id}-${field}-start`} style={{ padding: '6px' }}>
-                      <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_start_date`])} onBlur={(e) => handleStartDate(l, field, e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
+                    <td key={`${l.id}-shore-date`} style={{ padding: '4px' }}>
+                      <input type="datetime-local" defaultValue={toLocalInput(l.shore_date)} onBlur={(e) => handleDate(l, 'shore', e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
                     </td>,
-                    <td key={`${l.id}-${field}-date`} style={{ padding: '6px' }}>
+                    <td key={`${l.id}-shore-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.shore_by ? l.shore_by.split(' (')[0] : '-'}</td>,
+                  ]
+                })()}
+                {/* Steel sched + ref */}
+                <td style={{ padding: '4px' }}>
+                  <input type="date" defaultValue={l.steel_scheduled ? toLocalInput(l.steel_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'steel', e.target.value)} disabled={!isAdmin(user)}
+                    style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} />
+                </td>
+                <td style={{ padding: '4px' }}>
+                  <input type="text" defaultValue={l.steel_ref || ''} onBlur={(e) => handleRef(l, 'steel', e.target.value)} disabled={!isAdmin(user)} placeholder="Email 5/2"
+                    style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, width: 80 }} />
+                </td>
+                {/* Steel + Pour trade cells */}
+                {['steel', 'pour'].map(field => {
+                  const allowed = canEdit(user, field)
+                  const fieldPhotos = getItemPhotos(l.id, field)
+                  const refKey = `${l.id}-${field}`
+                  return [
+                    <td key={`${l.id}-${field}-cb`} style={{ padding: '4px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed}
+                          style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'steel' ? B.yellow : B.green, opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
+                        {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>}
+                        {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 8, fontWeight: 700, padding: '1px 4px', cursor: 'pointer' }}>{fieldPhotos.length}</button>}
+                      </div>
+                    </td>,
+                    <td key={`${l.id}-${field}-date`} style={{ padding: '4px' }}>
                       <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
                     </td>,
-                    <td key={`${l.id}-${field}-by`} style={{ padding: '6px', color: B.textMuted, fontSize: 11, whiteSpace: 'nowrap' }}>{l[`${field}_by`] || '-'}</td>,
+                    <td key={`${l.id}-${field}-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l[`${field}_by`] ? l[`${field}_by`].split(' (')[0] : '-'}</td>,
                   ]
                 })}
                 <td style={{ padding: '6px', minWidth: 220, verticalAlign: 'top' }}>
@@ -547,16 +578,15 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                       {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: '0 2px', flexShrink: 0, opacity: 0.6 }} title="Delete note">✕</button>}
                     </div>
                   ))}
-                  <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0, alignItems: 'flex-end' }}>
-                    <textarea
+                  <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0 }}>
+                    <input
                       value={newNote[l.id] || ''}
-                      onChange={(e) => { setNewNote(prev => ({ ...prev, [l.id]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(l.id); e.target.style.height = 'auto' } }}
+                      onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }}
                       placeholder="Add note..."
-                      rows={1}
-                      style={{ flex: 1, padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box', resize: 'none', overflow: 'hidden', lineHeight: 1.4, fontFamily: 'inherit' }}
+                      style={{ flex: 1, padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
                     />
-                    <button onClick={() => { handleAddNote(l.id) }} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Save</button>
+                    <button onClick={() => handleAddNote(l.id)} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>+</button>
                   </div>
                 </td>
               </tr>
@@ -572,19 +602,20 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
           return (
             <div key={l.id} style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
               {/* Card header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: '50%', background: getStatusColor(l, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>{l.number}</span>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ color: B.text, fontWeight: 700, fontSize: 14 }}>{level}</div>
                   <div style={{ color: B.textMuted, fontSize: 11 }}>{getStatusText(l)}</div>
                 </div>
               </div>
-              {/* Three trade rows */}
+              {/* Trade rows */}
               {['shore', 'steel', 'pour'].map(field => {
                 const allowed = canEdit(user, field)
                 const fieldPhotos = getItemPhotos(l.id, field)
                 const refKey = `${l.id}-${field}-m`
                 const color = field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green
+                const showSched = field === 'shore' || field === 'steel'
                 return (
                   <div key={field} style={{ padding: '8px 0', borderTop: `1px solid ${B.cardBorder}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -599,16 +630,20 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                         <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number })} style={{ background: color, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '2px 6px', cursor: 'pointer', flexShrink: 0 }}>{fieldPhotos.length}</button>
                       )}
                       {l[`${field}_by`] && (
-                        <span style={{ fontSize: 9, color: B.textMuted, marginLeft: 'auto', flexShrink: 0 }}>{l[`${field}_by`]}</span>
+                        <span style={{ fontSize: 9, color: B.textMuted, marginLeft: 'auto', flexShrink: 0 }}>{l[`${field}_by`].split(' (')[0]}</span>
                       )}
                     </div>
+                    {showSched && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
+                        <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0 }}>Sched:</span>
+                        <input type="date" defaultValue={l[`${field}_scheduled`] ? toLocalInput(l[`${field}_scheduled`]).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, field, e.target.value)} disabled={!isAdmin(user)}
+                          style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme }} />
+                        <input type="text" defaultValue={l[`${field}_ref`] || ''} onBlur={(e) => handleRef(l, field, e.target.value)} disabled={!isAdmin(user)} placeholder="Ref"
+                          style={{ width: 80, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5 }} />
+                      </div>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
-                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0, width: 36 }}>Start:</span>
-                      <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_start_date`])} onBlur={(e) => handleStartDate(l, field, e.target.value)} disabled={!allowed}
-                        style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
-                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0, width: 36 }}>Done:</span>
+                      <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0 }}>Date/Time:</span>
                       <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed}
                         style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
                     </div>
@@ -627,16 +662,15 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 4, marginTop: 6, alignItems: 'flex-end' }}>
-                <textarea
+              <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                <input
                   value={newNote[l.id] || ''}
-                  onChange={(e) => { setNewNote(prev => ({ ...prev, [l.id]: e.target.value })); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(l.id); e.target.style.height = 'auto' } }}
+                  onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }}
                   placeholder="Add note..."
-                  rows={1}
-                  style={{ flex: 1, padding: '6px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', resize: 'none', overflow: 'hidden', lineHeight: 1.4, fontFamily: 'inherit' }}
+                  style={{ flex: 1, padding: '6px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
                 />
-                <button onClick={() => { handleAddNote(l.id) }} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                <button onClick={() => handleAddNote(l.id)} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+</button>
               </div>
             </div>
           )
@@ -647,10 +681,10 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
       <table className="print-table print-only" style={{ display: 'none' }}>
         <thead>
           <tr>
-            <th>#</th><th>Level</th><th>Status</th>
-            <th>Shore ✓</th><th>Shore Start</th><th>Shore Done</th><th>Shore By</th>
-            <th>Steel ✓</th><th>Steel Start</th><th>Steel Done</th><th>Steel By</th>
-            <th>Pour ✓</th><th>Pour Start</th><th>Pour Done</th><th>Pour By</th>
+            <th>#</th><th>Level</th><th>Sched</th><th>Ref</th><th>Status</th>
+            <th>Shore ✓</th><th>Shore Date</th><th>Shore By</th>
+            <th>Steel ✓</th><th>Steel Date</th><th>Steel By</th>
+            <th>Pour ✓</th><th>Pour Date</th><th>Pour By</th>
             <th>Notes</th>
           </tr>
         </thead>
@@ -659,20 +693,19 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
             <tr key={l.id}>
               <td style={{ fontWeight: 700, textAlign: 'center' }}>{l.number}</td>
               <td>{labelFn(l)}</td>
+              <td>{l.scheduled_date ? formatNZDate(l.scheduled_date) : '-'}</td>
+              <td>{l.ref || '-'}</td>
               <td>
                 <span className="print-status" style={{ background: l.pour_complete ? '#22C55E' : l.steel_complete ? '#EAB308' : l.shore_complete ? '#4A9AB5' : '#ef4444' }}></span>
                 {getStatusText(l)}
               </td>
               <td style={{ textAlign: 'center' }}>{l.shore_complete ? '✅' : '—'}</td>
-              <td>{formatNZDate(l.shore_start_date)}</td>
               <td>{formatNZDate(l.shore_date)}</td>
               <td>{l.shore_by || '-'}</td>
               <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>
-              <td>{formatNZDate(l.steel_start_date)}</td>
               <td>{formatNZDate(l.steel_date)}</td>
               <td>{l.steel_by || '-'}</td>
               <td style={{ textAlign: 'center' }}>{l.pour_complete ? '✅' : '—'}</td>
-              <td>{formatNZDate(l.pour_start_date)}</td>
               <td>{formatNZDate(l.pour_date)}</td>
               <td>{l.pour_by || '-'}</td>
               <td>{getItemNotes(l.id).map(n => `${n.user_name}: ${n.message}`).join(' | ') || ''}</td>
@@ -716,321 +749,6 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
     </div>
   )
 }
-// ─── ANALYTICS VIEW ─────────────────────────────────────────────
-function AnalyticsView({ landings, lobbySlabs, notes, tracker, theme, landingLabelFn, lobbyLabelFn }) {
-  const B = THEMES[theme]
-  const items = tracker === 'landings' ? landings : lobbySlabs
-  const labelFn = tracker === 'landings' ? landingLabelFn : lobbyLabelFn
-  const title = tracker === 'landings' ? 'Stair Landings' : 'Lobby Slabs'
-  const itemType = tracker === 'landings' ? 'landing' : 'lobby_slab'
-
-  const total = items.length
-  const shored = items.filter(i => i.shore_complete).length
-  const steeled = items.filter(i => i.steel_complete).length
-  const poured = items.filter(i => i.pour_complete).length
-  const notStarted = items.filter(i => !i.shore_complete && !i.steel_complete && !i.pour_complete).length
-  const shoredOnly = items.filter(i => i.shore_complete && !i.steel_complete && !i.pour_complete).length
-  const steeledOnly = items.filter(i => i.steel_complete && !i.pour_complete).length
-
-  // In progress: started but not completed
-  const inProgress = items.filter(i => {
-    if (i.shore_start_date && !i.shore_complete) return true
-    if (i.steel_start_date && !i.steel_complete) return true
-    if (i.pour_start_date && !i.pour_complete) return true
-    return false
-  })
-
-  // Average durations
-  const calcAvgDuration = (startField, endField) => {
-    const durations = items.filter(i => i[startField] && i[endField]).map(i => {
-      return (new Date(i[endField]) - new Date(i[startField])) / (1000 * 60 * 60)
-    }).filter(d => d > 0 && d < 720) // filter out negatives and anything over 30 days
-    if (durations.length === 0) return null
-    return durations.reduce((a, b) => a + b, 0) / durations.length
-  }
-
-  const avgShore = calcAvgDuration('shore_start_date', 'shore_date')
-  const avgSteel = calcAvgDuration('steel_start_date', 'steel_date')
-  const avgPour = calcAvgDuration('pour_start_date', 'pour_date')
-
-  // Time between trades (shore complete → steel complete, steel complete → pour complete)
-  const calcAvgGap = (endField1, endField2) => {
-    const gaps = items.filter(i => i[endField1] && i[endField2]).map(i => {
-      return (new Date(i[endField2]) - new Date(i[endField1])) / (1000 * 60 * 60 * 24)
-    }).filter(d => d > 0 && d < 90)
-    if (gaps.length === 0) return null
-    return gaps.reduce((a, b) => a + b, 0) / gaps.length
-  }
-
-  const avgShoreToSteel = calcAvgGap('shore_date', 'steel_date')
-  const avgSteelToPour = calcAvgGap('steel_date', 'pour_date')
-
-  // Stalled items (started more than 3 days ago, not completed)
-  const now = new Date()
-  const stalled = items.filter(i => {
-    const fields = ['shore', 'steel', 'pour']
-    return fields.some(f => {
-      const started = i[`${f}_start_date`]
-      const done = i[`${f}_complete`]
-      if (started && !done) {
-        const daysAgo = (now - new Date(started)) / (1000 * 60 * 60 * 24)
-        return daysAgo > 3
-      }
-      return false
-    })
-  })
-
-  // Items with notes (potential delay flags)
-  const itemsWithNotes = items.filter(i => (notes || []).some(n => n.item_type === itemType && n.item_id === i.id))
-
-  // Recent completions (last 7 days)
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000)
-  const recentCompletions = []
-  items.forEach(i => {
-    ;['shore', 'steel', 'pour'].forEach(f => {
-      if (i[`${f}_date`] && new Date(i[`${f}_date`]) > sevenDaysAgo) {
-        recentCompletions.push({ item: i, field: f, date: new Date(i[`${f}_date`]) })
-      }
-    })
-  })
-  recentCompletions.sort((a, b) => b.date - a.date)
-
-  const formatHours = (h) => {
-    if (h === null) return '—'
-    if (h < 1) return `${Math.round(h * 60)} mins`
-    if (h < 24) return `${h.toFixed(1)} hrs`
-    return `${(h / 24).toFixed(1)} days`
-  }
-
-  const formatDays = (d) => {
-    if (d === null) return '—'
-    return `${d.toFixed(1)} days`
-  }
-
-  const pctBar = (value, max, color) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-      <div style={{ flex: 1, height: 20, background: B.bg, borderRadius: 10, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
-        <div style={{ width: max > 0 ? `${(value / max) * 100}%` : '0%', height: '100%', background: color, borderRadius: 10, transition: 'width 0.5s' }} />
-      </div>
-      <span style={{ color: B.text, fontWeight: 700, fontSize: 14, minWidth: 50, textAlign: 'right' }}>{value}/{max}</span>
-    </div>
-  )
-
-  const cardStyle = { background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 10, padding: 16, marginBottom: 12 }
-  const statBoxStyle = (color) => ({
-    background: B.bg, border: `1px solid ${B.cardBorder}`, borderRadius: 8, padding: 12, textAlign: 'center', flex: 1, minWidth: 100,
-    borderTop: `3px solid ${color}`,
-  })
-
-  const handleExportPDF = () => { window.print() }
-
-  return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
-      {/* Print header */}
-      <div className="print-only" style={{ display: 'none', marginBottom: 16 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#000' }}>Moxy Hotel — {title} Analytics Report</h1>
-        <p style={{ fontSize: 12, color: '#666', margin: '4px 0 0 0' }}>City Scaffold Ltd — Generated {new Date().toLocaleString('en-NZ')}</p>
-      </div>
-
-      <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-        <span style={{ color: B.text, fontWeight: 700, fontSize: 18 }}>{title} — Analytics</span>
-        <span style={{ color: B.textMuted, fontSize: 12 }}>({total} items)</span>
-        <div style={{ flex: 1 }} />
-        <button onClick={handleExportPDF} style={{ padding: '6px 14px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📄 Export PDF</button>
-      </div>
-
-      {/* Overview stats */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={statBoxStyle(B.red)}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: B.red }}>{notStarted}</div>
-          <div style={{ fontSize: 11, color: B.textMuted, fontWeight: 600 }}>Not Started</div>
-        </div>
-        <div style={statBoxStyle(B.blue)}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: B.blue }}>{shoredOnly}</div>
-          <div style={{ fontSize: 11, color: B.textMuted, fontWeight: 600 }}>Shored (waiting)</div>
-        </div>
-        <div style={statBoxStyle(B.yellow)}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: B.yellow }}>{steeledOnly}</div>
-          <div style={{ fontSize: 11, color: B.textMuted, fontWeight: 600 }}>Steel Done (waiting)</div>
-        </div>
-        <div style={statBoxStyle(B.green)}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: B.green }}>{poured}</div>
-          <div style={{ fontSize: 11, color: B.textMuted, fontWeight: 600 }}>Fully Complete</div>
-        </div>
-      </div>
-
-      {/* Progress bars */}
-      <div style={cardStyle}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 12 }}>Progress by Trade</div>
-        <div style={{ marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: B.blue, fontWeight: 600 }}>Shore Loading</span>
-        </div>
-        {pctBar(shored, total, B.blue)}
-        <div style={{ marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: B.yellow, fontWeight: 600 }}>Steel Fixing</span>
-        </div>
-        {pctBar(steeled, total, B.yellow)}
-        <div style={{ marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: B.green, fontWeight: 600 }}>Concrete Pour</span>
-        </div>
-        {pctBar(poured, total, B.green)}
-      </div>
-
-      {/* Average durations */}
-      <div style={cardStyle}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 12 }}>Average Durations</div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ ...statBoxStyle(B.blue), borderTop: 'none', background: B.card }}>
-            <div style={{ fontSize: 11, color: B.textMuted, marginBottom: 4 }}>Shore (start → done)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: B.blue }}>{formatHours(avgShore)}</div>
-          </div>
-          <div style={{ ...statBoxStyle(B.yellow), borderTop: 'none', background: B.card }}>
-            <div style={{ fontSize: 11, color: B.textMuted, marginBottom: 4 }}>Steel (start → done)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: B.yellow }}>{formatHours(avgSteel)}</div>
-          </div>
-          <div style={{ ...statBoxStyle(B.green), borderTop: 'none', background: B.card }}>
-            <div style={{ fontSize: 11, color: B.textMuted, marginBottom: 4 }}>Pour (start → done)</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: B.green }}>{formatHours(avgPour)}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
-          <div style={{ ...statBoxStyle('#8B5CF6'), borderTop: 'none', background: B.card }}>
-            <div style={{ fontSize: 11, color: B.textMuted, marginBottom: 4 }}>Avg gap: Shore → Steel</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#8B5CF6' }}>{formatDays(avgShoreToSteel)}</div>
-          </div>
-          <div style={{ ...statBoxStyle('#F97316'), borderTop: 'none', background: B.card }}>
-            <div style={{ fontSize: 11, color: B.textMuted, marginBottom: 4 }}>Avg gap: Steel → Pour</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#F97316' }}>{formatDays(avgSteelToPour)}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* In Progress */}
-      {inProgress.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 12 }}>🔄 Currently In Progress ({inProgress.length})</div>
-          {inProgress.map(i => {
-            const activeFields = ['shore', 'steel', 'pour'].filter(f => i[`${f}_start_date`] && !i[`${f}_complete`])
-            return (
-              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${B.cardBorder}` }}>
-                <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: getStatusColor(i, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{i.number}</span>
-                <span style={{ color: B.text, fontSize: 13, fontWeight: 600, minWidth: 100 }}>{labelFn(i)}</span>
-                {activeFields.map(f => (
-                  <span key={f} style={{ fontSize: 11, color: f === 'shore' ? B.blue : f === 'steel' ? B.yellow : B.green, fontWeight: 600 }}>
-                    {f} started {new Date(i[`${f}_start_date`]).toLocaleDateString('en-NZ')}
-                  </span>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Stalled */}
-      {stalled.length > 0 && (
-        <div style={{ ...cardStyle, borderColor: B.red }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: B.red, marginBottom: 12 }}>⚠️ Potentially Stalled ({stalled.length})</div>
-          <div style={{ fontSize: 11, color: B.textMuted, marginBottom: 10 }}>Started more than 3 days ago but not yet completed</div>
-          {stalled.map(i => {
-            const stalledFields = ['shore', 'steel', 'pour'].filter(f => {
-              const started = i[`${f}_start_date`]
-              return started && !i[`${f}_complete`] && (now - new Date(started)) / (1000 * 60 * 60 * 24) > 3
-            })
-            return (
-              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: `1px solid ${B.cardBorder}` }}>
-                <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: B.red, color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{i.number}</span>
-                <span style={{ color: B.text, fontSize: 13, fontWeight: 600, minWidth: 100 }}>{labelFn(i)}</span>
-                {stalledFields.map(f => {
-                  const days = ((now - new Date(i[`${f}_start_date`])) / (1000 * 60 * 60 * 24)).toFixed(0)
-                  return (
-                    <span key={f} style={{ fontSize: 11, color: B.red, fontWeight: 600 }}>
-                      {f}: {days} days since started
-                    </span>
-                  )
-                })}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Recent completions */}
-      {recentCompletions.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 12 }}>✅ Completed Last 7 Days ({recentCompletions.length})</div>
-          {recentCompletions.slice(0, 20).map((c, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid ${B.cardBorder}` }}>
-              <span style={{ display: 'inline-flex', width: 24, height: 24, borderRadius: '50%', background: c.field === 'shore' ? B.blue : c.field === 'steel' ? B.yellow : B.green, color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 10 }}>{c.item.number}</span>
-              <span style={{ color: B.text, fontSize: 12, fontWeight: 600, minWidth: 80 }}>{labelFn(c.item)}</span>
-              <span style={{ fontSize: 11, color: c.field === 'shore' ? B.blue : c.field === 'steel' ? B.yellow : B.green, fontWeight: 600, textTransform: 'uppercase' }}>{c.field}</span>
-              <span style={{ fontSize: 11, color: B.textMuted, marginLeft: 'auto' }}>{c.date.toLocaleString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Items with notes */}
-      {itemsWithNotes.length > 0 && (
-        <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: B.text, marginBottom: 12 }}>📝 Items with Notes ({itemsWithNotes.length})</div>
-          {itemsWithNotes.map(i => {
-            const itemNotes = (notes || []).filter(n => n.item_type === itemType && n.item_id === i.id)
-            return (
-              <div key={i.id} style={{ padding: '8px 0', borderBottom: `1px solid ${B.cardBorder}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ display: 'inline-flex', width: 24, height: 24, borderRadius: '50%', background: getStatusColor(i, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 10 }}>{i.number}</span>
-                  <span style={{ color: B.text, fontSize: 13, fontWeight: 600 }}>{labelFn(i)}</span>
-                  <span style={{ fontSize: 11, color: B.textMuted }}>({getStatusText(i)})</span>
-                </div>
-                {itemNotes.map(n => (
-                  <div key={n.id} style={{ marginLeft: 32, fontSize: 11, color: B.text, lineHeight: 1.5 }}>
-                    <span style={{ color: COMPANY_COLORS[n.company] || B.textMuted, fontWeight: 700 }}>{n.user_name}:</span> {n.message}
-                  </div>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Print-friendly summary table */}
-      <table className="print-table print-only" style={{ display: 'none', marginTop: 20 }}>
-        <thead>
-          <tr>
-            <th>#</th><th>Level</th><th>Status</th>
-            <th>Shore Start</th><th>Shore Done</th>
-            <th>Steel Start</th><th>Steel Done</th>
-            <th>Pour Start</th><th>Pour Done</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...items].sort((a, b) => a.number - b.number).map(i => {
-            const itemNotes = (notes || []).filter(n => n.item_type === itemType && n.item_id === i.id)
-            return (
-              <tr key={i.id}>
-                <td style={{ fontWeight: 700, textAlign: 'center' }}>{i.number}</td>
-                <td>{labelFn(i)}</td>
-                <td>
-                  <span className="print-status" style={{ background: i.pour_complete ? '#22C55E' : i.steel_complete ? '#EAB308' : i.shore_complete ? '#4A9AB5' : '#ef4444' }}></span>
-                  {getStatusText(i)}
-                </td>
-                <td>{formatNZDate(i.shore_start_date)}</td>
-                <td>{formatNZDate(i.shore_date)}</td>
-                <td>{formatNZDate(i.steel_start_date)}</td>
-                <td>{formatNZDate(i.steel_date)}</td>
-                <td>{formatNZDate(i.pour_start_date)}</td>
-                <td>{formatNZDate(i.pour_date)}</td>
-                <td>{itemNotes.map(n => `${n.user_name}: ${n.message}`).join(' | ') || ''}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
 function ActivityView({ logs, theme, onDelete }) {
   const B = THEMES[theme]
   const [filter, setFilter] = useState('All')
@@ -1460,15 +1178,6 @@ export default function Home() {
       {/* ACTIVITY (shared) */}
       {activeTab === 'Activity' && (
         <ActivityView logs={logs} theme={theme} onDelete={loadLogs} />
-      )}
-
-      {/* ANALYTICS */}
-      {activeTab === 'Analytics' && (
-        <AnalyticsView
-          landings={landings} lobbySlabs={lobbySlabs} notes={notes}
-          tracker={tracker} theme={theme}
-          landingLabelFn={landingLabelFn} lobbyLabelFn={lobbyLabelFn}
-        />
       )}
 
       {/* CHAT */}
