@@ -509,6 +509,14 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
       {/* Interactive table (screen - desktop) */}
       <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
+          <tr>
+            <th colSpan={2}></th>
+            <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#4A9AB5', borderRadius: '6px 6px 0 0' }}>CITY SCAFFOLD</th>
+            <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#4A9AB5', borderRadius: '6px 6px 0 0' }}>CITY SCAFFOLD</th>
+            <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#22C55E', borderRadius: '6px 6px 0 0' }}>NAUHRIA</th>
+            <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#F97316', borderRadius: '6px 6px 0 0' }}>CMP / DOMINION</th>
+            <th></th>
+          </tr>
           <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
             {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES'].map((h, i) => (
               <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
@@ -901,6 +909,15 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
             {/* Desktop table */}
             <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
               <thead>
+                <tr>
+                  <th colSpan={2}></th>
+                  <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#4A9AB5', borderRadius: '6px 6px 0 0' }}>CITY SCAFFOLD</th>
+                  <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#4A9AB5', borderRadius: '6px 6px 0 0' }}>CITY SCAFFOLD</th>
+                  <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#22C55E', borderRadius: '6px 6px 0 0' }}>NAUHRIA</th>
+                  <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#F97316', borderRadius: '6px 6px 0 0' }}>CMP / DOMINION</th>
+                  <th></th>
+                  {allowAddRemove && isAdmin(user) && <th></th>}
+                </tr>
                 <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
                   {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
                     <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
