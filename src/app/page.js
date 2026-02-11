@@ -776,7 +776,11 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
   const photoInputRefs = useRef({})
   const [addingLabel, setAddingLabel] = useState({})
 
-  const groups = [...new Set(items.map(i => i[groupField]))].sort()
+  const groups = [...new Set(items.map(i => i[groupField]))].sort((a, b) => {
+    if (a === 'Upper') return -1; if (b === 'Upper') return 1;
+    if (a === 'Passenger Lift') return -1; if (b === 'Passenger Lift') return 1;
+    return a.localeCompare(b)
+  })
 
   const getItemPhotos = (itemId, field) => (photos || []).filter(p => p.item_type === itemType && p.item_id === itemId && p.field === field)
   const getItemNotes = (itemId) => (notes || []).filter(n => n.item_type === itemType && n.item_id === itemId)
