@@ -35,7 +35,7 @@ const isAdmin = (user) => user && user.name.toLowerCase() === 'shane' && user.co
 const isGhost = (user) => user && user.role === 'ghost'
 
 const TRADE_PERMISSIONS = {
-  'City Scaffold': ['shore'],
+  'City Scaffold': ['shore', 'dismantle'],
   'CMP Construction': ['pour'],
   'Dominion Constructors': ['pour'],
   'Nauhria': ['steel'],
@@ -510,7 +510,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
       <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-            {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES'].map((h, i) => (
+            {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES'].map((h, i) => (
               <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
@@ -552,6 +552,28 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                       <input type="datetime-local" defaultValue={toLocalInput(l.shore_date)} onBlur={(e) => handleDate(l, 'shore', e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
                     </td>,
                     <td key={`${l.id}-shore-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.shore_by ? l.shore_by.split(' (')[0] : '-'}</td>,
+                  ]
+                })()}
+                {/* Dismantle */}
+                {(() => {
+                  const field = 'dismantle'
+                  const allowed = canEdit(user, field)
+                  const fieldPhotos = getItemPhotos(l.id, field)
+                  const refKey = `${l.id}-${field}`
+                  return [
+                    <td key={`${l.id}-dis-cb`} style={{ padding: '4px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        <input type="checkbox" checked={!!l.dismantle_complete} onChange={() => handleToggle(l, 'dismantle')} disabled={!allowed}
+                          style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: '#f97316', opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, 'dismantle', e)} style={{ display: 'none' }} />
+                        {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>}
+                        {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field: 'dismantle', number: l.number })} style={{ background: '#f97316', color: '#fff', border: 'none', borderRadius: 10, fontSize: 8, fontWeight: 700, padding: '1px 4px', cursor: 'pointer' }}>{fieldPhotos.length}</button>}
+                      </div>
+                    </td>,
+                    <td key={`${l.id}-dis-date`} style={{ padding: '4px' }}>
+                      <input type="datetime-local" defaultValue={toLocalInput(l.dismantle_date)} onBlur={(e) => handleDate(l, 'dismantle', e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} />
+                    </td>,
+                    <td key={`${l.id}-dis-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.dismantle_by ? l.dismantle_by.split(' (')[0] : '-'}</td>,
                   ]
                 })()}
                 {/* Steel sched + ref */}
@@ -626,11 +648,11 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
                 </div>
               </div>
               {/* Trade rows */}
-              {['shore', 'steel', 'pour'].map(field => {
+              {['shore', 'dismantle', 'steel', 'pour'].map(field => {
                 const allowed = canEdit(user, field)
                 const fieldPhotos = getItemPhotos(l.id, field)
                 const refKey = `${l.id}-${field}-m`
-                const color = field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green
+                const color = field === 'shore' ? B.blue : field === 'dismantle' ? '#f97316' : field === 'steel' ? B.yellow : B.green
                 const showSched = field === 'shore' || field === 'steel'
                 return (
                   <div key={field} style={{ padding: '8px 0', borderTop: `1px solid ${B.cardBorder}` }}>
@@ -701,6 +723,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
           <tr>
             <th>#</th><th>Level</th><th>Sched</th><th>Ref</th><th>Status</th>
             <th>Shore ✓</th><th>Shore Date</th><th>Shore By</th>
+            <th>Dismantle ✓</th><th>Dismantle Date</th><th>Dismantle By</th>
             <th>Steel ✓</th><th>Steel Date</th><th>Steel By</th>
             <th>Pour ✓</th><th>Pour Date</th><th>Pour By</th>
             <th>Notes</th>
@@ -720,6 +743,9 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
               <td style={{ textAlign: 'center' }}>{l.shore_complete ? '✅' : '—'}</td>
               <td>{formatNZDate(l.shore_date)}</td>
               <td>{l.shore_by || '-'}</td>
+              <td style={{ textAlign: 'center' }}>{l.dismantle_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.dismantle_date)}</td>
+              <td>{l.dismantle_by || '-'}</td>
               <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>
               <td>{formatNZDate(l.steel_date)}</td>
               <td>{l.steel_by || '-'}</td>
@@ -876,7 +902,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
             <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-                  {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
+                  {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
                     <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -901,6 +927,17 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                       </div></td>,
                       <td key={`${l.id}-shore-date`} style={{ padding: '4px' }}><input type="datetime-local" defaultValue={toLocalInput(l.shore_date)} onBlur={(e) => handleDate(l, 'shore', e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} /></td>,
                       <td key={`${l.id}-shore-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.shore_by ? l.shore_by.split(' (')[0] : '-'}</td>,
+                    ] })()}
+                    {/* Dismantle */}
+                    {(() => { const field = 'dismantle'; const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-dis`; return [
+                      <td key={`${l.id}-dis-cb`} style={{ padding: '4px', textAlign: 'center' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        <input type="checkbox" checked={!!l.dismantle_complete} onChange={() => handleToggle(l, 'dismantle')} disabled={!allowed} style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: '#f97316', opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, 'dismantle', e)} style={{ display: 'none' }} />
+                        {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>}
+                        {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field: 'dismantle', number: l.number, group: l[groupField] })} style={{ background: '#f97316', color: '#fff', border: 'none', borderRadius: 10, fontSize: 8, fontWeight: 700, padding: '1px 4px', cursor: 'pointer' }}>{fieldPhotos.length}</button>}
+                      </div></td>,
+                      <td key={`${l.id}-dis-date`} style={{ padding: '4px' }}><input type="datetime-local" defaultValue={toLocalInput(l.dismantle_date)} onBlur={(e) => handleDate(l, 'dismantle', e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} /></td>,
+                      <td key={`${l.id}-dis-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.dismantle_by ? l.dismantle_by.split(' (')[0] : '-'}</td>,
                     ] })()}
                     {/* Steel sched + ref */}
                     <td style={{ padding: '4px' }}><input type="date" defaultValue={l.steel_scheduled ? toLocalInput(l.steel_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'steel', e.target.value)} disabled={!isAdmin(user)} style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} /></td>
@@ -957,9 +994,9 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                       <button onClick={() => handleRemoveLevel(l)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }} title="Remove">✕</button>
                     )}
                   </div>
-                  {['shore', 'steel', 'pour'].map(field => {
+                  {['shore', 'dismantle', 'steel', 'pour'].map(field => {
                     const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}-m`
-                    const color = field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green
+                    const color = field === 'shore' ? B.blue : field === 'dismantle' ? '#f97316' : field === 'steel' ? B.yellow : B.green
                     return (
                       <div key={field} style={{ padding: '8px 0', borderTop: `1px solid ${B.cardBorder}` }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1012,7 +1049,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
       {/* Print table */}
       <table className="print-table print-only" style={{ display: 'none' }}>
         <thead>
-          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>Shore ✓</th><th>Shore Date</th><th>Shore By</th><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th><th>Notes</th></tr>
+          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>Shore ✓</th><th>Shore Date</th><th>Shore By</th><th>Dismantle ✓</th><th>Dismantle Date</th><th>Dismantle By</th><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th><th>Notes</th></tr>
         </thead>
         <tbody>
           {items.sort((a, b) => a[groupField].localeCompare(b[groupField]) || a.number - b.number).map(l => (
@@ -1024,6 +1061,9 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
               <td style={{ textAlign: 'center' }}>{l.shore_complete ? '✅' : '—'}</td>
               <td>{formatNZDate(l.shore_date)}</td>
               <td>{l.shore_by || '-'}</td>
+              <td style={{ textAlign: 'center' }}>{l.dismantle_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.dismantle_date)}</td>
+              <td>{l.dismantle_by || '-'}</td>
               <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>
               <td>{formatNZDate(l.steel_date)}</td>
               <td>{l.steel_by || '-'}</td>
