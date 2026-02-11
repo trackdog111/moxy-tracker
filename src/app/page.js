@@ -802,7 +802,7 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
   )
 }
 // ─── GROUPED TABLE VIEW (Lift Shafts & Loading Bays) ────────────
-function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, onUpdate, notes, onNotesUpdate, photos, onPhotosUpdate, allowAddRemove }) {
+function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, onUpdate, notes, onNotesUpdate, photos, onPhotosUpdate, allowAddRemove, scaffoldOnly }) {
   const B = THEMES[theme]
   const itemType = tableName === 'lift_shafts' ? 'lift_shaft' : 'loading_bay'
   const [newNote, setNewNote] = useState({})
@@ -913,13 +913,13 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                   <th colSpan={2}></th>
                   <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#4A9AB5', borderRadius: '6px 6px 0 0' }}>CITY SCAFFOLD</th>
                   <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#4A9AB5', borderRadius: '6px 6px 0 0' }}>CITY SCAFFOLD</th>
-                  <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#22C55E', borderRadius: '6px 6px 0 0' }}>NAUHRIA</th>
-                  <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#F97316', borderRadius: '6px 6px 0 0' }}>CMP / DOMINION</th>
+                  {!scaffoldOnly && <th colSpan={5} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#22C55E', borderRadius: '6px 6px 0 0' }}>NAUHRIA</th>}
+                  {!scaffoldOnly && <th colSpan={3} style={{ textAlign: 'center', padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#F97316', borderRadius: '6px 6px 0 0' }}>CMP / DOMINION</th>}
                   <th></th>
                   {allowAddRemove && isAdmin(user) && <th></th>}
                 </tr>
                 <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-                  {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
+                  {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', ...(!scaffoldOnly ? ['STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY'] : []), 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
                     <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -957,10 +957,10 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                       <td key={`${l.id}-dis-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.dismantle_by ? l.dismantle_by.split(' (')[0] : '-'}</td>,
                     ] })()}
                     {/* Steel sched + ref */}
-                    <td style={{ padding: '4px' }}><input type="date" defaultValue={l.steel_scheduled ? toLocalInput(l.steel_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'steel', e.target.value)} disabled={!isAdmin(user)} style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} /></td>
-                    <td style={{ padding: '4px' }}><input type="text" defaultValue={l.steel_ref || ''} onBlur={(e) => handleRef(l, 'steel', e.target.value)} disabled={!isAdmin(user)} placeholder="Ref" style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, width: 80 }} /></td>
+                    {!scaffoldOnly && <td style={{ padding: '4px' }}><input type="date" defaultValue={l.steel_scheduled ? toLocalInput(l.steel_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'steel', e.target.value)} disabled={!isAdmin(user)} style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} /></td>}
+                    {!scaffoldOnly && <td style={{ padding: '4px' }}><input type="text" defaultValue={l.steel_ref || ''} onBlur={(e) => handleRef(l, 'steel', e.target.value)} disabled={!isAdmin(user)} placeholder="Ref" style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, width: 80 }} /></td>}
                     {/* Steel + Pour */}
-                    {['steel', 'pour'].map(field => { const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}`; return [
+                    {!scaffoldOnly && ['steel', 'pour'].map(field => { const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}`; return [
                       <td key={`${l.id}-${field}-cb`} style={{ padding: '4px', textAlign: 'center' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                         <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed} style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'steel' ? B.yellow : B.green, opacity: allowed ? 1 : 0.4 }} />
                         <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
@@ -1011,7 +1011,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                       <button onClick={() => handleRemoveLevel(l)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }} title="Remove">✕</button>
                     )}
                   </div>
-                  {['shore', 'dismantle', 'steel', 'pour'].map(field => {
+                  {(scaffoldOnly ? ['shore', 'dismantle'] : ['shore', 'dismantle', 'steel', 'pour']).map(field => {
                     const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}-m`
                     const color = field === 'shore' ? B.blue : field === 'dismantle' ? '#f97316' : field === 'steel' ? B.yellow : B.green
                     return (
@@ -1066,7 +1066,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
       {/* Print table */}
       <table className="print-table print-only" style={{ display: 'none' }}>
         <thead>
-          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>Shore ✓</th><th>Shore Date</th><th>Shore By</th><th>Dismantle ✓</th><th>Dismantle Date</th><th>Dismantle By</th><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th><th>Notes</th></tr>
+          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>Shore ✓</th><th>Shore Date</th><th>Shore By</th><th>Dismantle ✓</th><th>Dismantle Date</th><th>Dismantle By</th>{!scaffoldOnly && <><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th></>}<th>Notes</th></tr>
         </thead>
         <tbody>
           {items.sort((a, b) => a[groupField].localeCompare(b[groupField]) || a.number - b.number).map(l => (
@@ -1081,12 +1081,12 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
               <td style={{ textAlign: 'center' }}>{l.dismantle_complete ? '✅' : '—'}</td>
               <td>{formatNZDate(l.dismantle_date)}</td>
               <td>{l.dismantle_by || '-'}</td>
-              <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>
-              <td>{formatNZDate(l.steel_date)}</td>
-              <td>{l.steel_by || '-'}</td>
-              <td style={{ textAlign: 'center' }}>{l.pour_complete ? '✅' : '—'}</td>
-              <td>{formatNZDate(l.pour_date)}</td>
-              <td>{l.pour_by || '-'}</td>
+              {!scaffoldOnly && <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>}
+              {!scaffoldOnly && <td>{formatNZDate(l.steel_date)}</td>}
+              {!scaffoldOnly && <td>{l.steel_by || '-'}</td>}
+              {!scaffoldOnly && <td style={{ textAlign: 'center' }}>{l.pour_complete ? '✅' : '—'}</td>}
+              {!scaffoldOnly && <td>{formatNZDate(l.pour_date)}</td>}
+              {!scaffoldOnly && <td>{l.pour_by || '-'}</td>}
               <td>{getItemNotes(l.id).map(n => `${n.user_name}: ${n.message}`).join(' | ') || ''}</td>
             </tr>
           ))}
@@ -1560,12 +1560,12 @@ export default function Home() {
 
       {/* LIFT SHAFTS */}
       {tracker === 'lifts' && activeTab === 'Table' && (
-        <GroupedTableView items={liftShafts} user={user} tableName="lift_shafts" groupField="shaft_name" labelFn={liftLabelFn} theme={theme} onUpdate={loadLiftShafts} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} allowAddRemove={true} />
+        <GroupedTableView items={liftShafts} user={user} tableName="lift_shafts" groupField="shaft_name" labelFn={liftLabelFn} theme={theme} onUpdate={loadLiftShafts} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} allowAddRemove={true} scaffoldOnly={true} />
       )}
 
       {/* LOADING BAYS */}
       {tracker === 'bays' && activeTab === 'Table' && (
-        <GroupedTableView items={loadingBays} user={user} tableName="loading_bays" groupField="bay_name" labelFn={bayLabelFn} theme={theme} onUpdate={loadLoadingBays} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} allowAddRemove={false} />
+        <GroupedTableView items={loadingBays} user={user} tableName="loading_bays" groupField="bay_name" labelFn={bayLabelFn} theme={theme} onUpdate={loadLoadingBays} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} allowAddRemove={false} scaffoldOnly={true} />
       )}
 
       {/* ACTIVITY (shared) */}
