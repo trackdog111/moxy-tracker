@@ -211,9 +211,9 @@ function LoginScreen({ onLogin }) {
 }
 
 // ─── HEADER ─────────────────────────────────────────────────────
-function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout, theme, setTheme, tracker, setTracker }) {
+function Header({ user, landings, lobbySlabs, liftShafts, loadingBays, activeTab, setActiveTab, onLogout, theme, setTheme, tracker, setTracker }) {
   const B = THEMES[theme]
-  const items = tracker === 'landings' ? landings : lobbySlabs
+  const items = tracker === 'landings' ? landings : tracker === 'lobby' ? lobbySlabs : tracker === 'lifts' ? liftShafts : loadingBays
   const shored = items.filter(l => l.shore_complete && !l.steel_complete && !l.pour_complete).length
   const steel = items.filter(l => l.steel_complete && !l.pour_complete).length
   const poured = items.filter(l => l.pour_complete).length
@@ -221,6 +221,13 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
   const tabs = tracker === 'landings'
     ? ((isAdmin(user) || isGhost(user)) ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Chat'])
     : ((isAdmin(user) || isGhost(user)) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
+
+  const trackerButtons = [
+    { key: 'landings', label: 'Landings', defaultTab: 'Diagram' },
+    { key: 'lobby', label: 'Lobby', defaultTab: 'Table' },
+    { key: 'lifts', label: 'Lift Shafts', defaultTab: 'Table' },
+    { key: 'bays', label: 'Loading Bays', defaultTab: 'Table' },
+  ]
 
   return (
     <div className="no-print" style={{ background: B.card, borderBottom: `1px solid ${B.cardBorder}`, position: 'sticky', top: 0, zIndex: 100 }}>
@@ -234,8 +241,9 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
           </div>
         </div>
         <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
-          <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Stair Landings</button>
-          <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby Slabs</button>
+          {trackerButtons.map(t => (
+            <button key={t.key} onClick={() => { setTracker(t.key); setActiveTab(t.defaultTab) }} style={{ padding: '5px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === t.key ? B.primary : B.bg, color: tracker === t.key ? '#fff' : B.textMuted }}>{t.label}</button>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <span style={{ color: B.red, fontWeight: 700, fontSize: 13 }}>{notStarted} <span style={{ color: B.textMuted, fontWeight: 400, fontSize: 10 }}>Not Started</span></span>
@@ -273,8 +281,9 @@ function Header({ user, landings, lobbySlabs, activeTab, setActiveTab, onLogout,
         </div>
         <div style={{ padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
-            <button onClick={() => { setTracker('landings'); setActiveTab('Diagram') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'landings' ? B.primary : B.bg, color: tracker === 'landings' ? '#fff' : B.textMuted }}>Landings</button>
-            <button onClick={() => { setTracker('lobby'); setActiveTab('Table') }} style={{ padding: '4px 10px', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer', background: tracker === 'lobby' ? B.primary : B.bg, color: tracker === 'lobby' ? '#fff' : B.textMuted }}>Lobby</button>
+            {trackerButtons.map(t => (
+              <button key={t.key} onClick={() => { setTracker(t.key); setActiveTab(t.defaultTab) }} style={{ padding: '4px 8px', border: 'none', fontSize: 9, fontWeight: 600, cursor: 'pointer', background: tracker === t.key ? B.primary : B.bg, color: tracker === t.key ? '#fff' : B.textMuted }}>{t.label}</button>
+            ))}
           </div>
           <div style={{ display: 'flex', gap: 3 }}>
             {tabs.map(t => (
@@ -758,6 +767,300 @@ function GenericTableView({ items, user, tableName, labelFn, theme, onUpdate, no
     </div>
   )
 }
+// ─── GROUPED TABLE VIEW (Lift Shafts & Loading Bays) ────────────
+function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, onUpdate, notes, onNotesUpdate, photos, onPhotosUpdate, allowAddRemove }) {
+  const B = THEMES[theme]
+  const itemType = tableName === 'lift_shafts' ? 'lift_shaft' : 'loading_bay'
+  const [newNote, setNewNote] = useState({})
+  const [viewingPhotos, setViewingPhotos] = useState(null)
+  const photoInputRefs = useRef({})
+  const [addingLabel, setAddingLabel] = useState({})
+
+  const groups = [...new Set(items.map(i => i[groupField]))].sort()
+
+  const getItemPhotos = (itemId, field) => (photos || []).filter(p => p.item_type === itemType && p.item_id === itemId && p.field === field)
+  const getItemNotes = (itemId) => (notes || []).filter(n => n.item_type === itemType && n.item_id === itemId)
+
+  const handlePhotoUpload = async (item, field, e) => {
+    const file = e.target.files[0]; if (!file) return
+    const ext = file.name.split('.').pop()
+    const fileName = `${itemType}_${item[groupField]}_${item.number}_${field}_${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('photos').upload(fileName, file, { upsert: false })
+    if (error) { alert('Upload failed: ' + error.message); return }
+    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName)
+    if (urlData?.publicUrl) {
+      await supabase.from('photos').insert({ item_type: itemType, item_id: item.id, field, file_name: fileName, url: urlData.publicUrl, uploaded_by: `${user.name} (${user.company})` })
+      await supabase.from('activity_log').insert({ user_name: user.name, company: user.company, action: `Photo uploaded (${field})`, details: `${item[groupField]} #${item.number} (${labelFn(item)}) - ${field} photo added`, device_info: navigator.userAgent?.substring(0, 100) || '' })
+      onPhotosUpdate()
+    }
+    e.target.value = ''
+  }
+
+  const handleDeletePhoto = async (photo) => { if (!isAdmin(user)) return; await supabase.storage.from('photos').remove([photo.file_name]); await supabase.from('photos').delete().eq('id', photo.id); onPhotosUpdate() }
+
+  const handleToggle = async (item, field) => {
+    if (!canEdit(user, field)) return
+    const newVal = !item[`${field}_complete`]
+    const updates = { [`${field}_complete`]: newVal, [`${field}_by`]: newVal ? user.name : null }
+    if (!newVal) updates[`${field}_date`] = null
+    await supabase.from(tableName).update(updates).eq('id', item.id)
+    await supabase.from('activity_log').insert({ user_name: user.name, company: user.company, action: newVal ? `Completed ${field}` : `Unchecked ${field}`, details: `${item[groupField]} #${item.number} (${labelFn(item)}) - ${field} ${newVal ? 'completed' : 'unchecked'}`, device_info: navigator.userAgent?.substring(0, 100) || '' })
+    onUpdate()
+  }
+
+  const handleDate = async (item, field, value) => {
+    if (!canEdit(user, field)) return
+    const isoVal = value ? new Date(value).toISOString() : null
+    await supabase.from(tableName).update({ [`${field}_date`]: isoVal }).eq('id', item.id)
+    if (value) await supabase.from('activity_log').insert({ user_name: user.name, company: user.company, action: `Set ${field} date`, details: `${item[groupField]} #${item.number} (${labelFn(item)}) - ${field} date set to ${value}`, device_info: navigator.userAgent?.substring(0, 100) || '' })
+    onUpdate()
+  }
+
+  const handleSchedDate = async (item, trade, value) => { if (!isAdmin(user)) return; const isoVal = value ? new Date(value).toISOString() : null; await supabase.from(tableName).update({ [`${trade}_scheduled`]: isoVal }).eq('id', item.id); onUpdate() }
+  const handleRef = async (item, trade, value) => { if (!isAdmin(user)) return; await supabase.from(tableName).update({ [`${trade}_ref`]: value || null }).eq('id', item.id); onUpdate() }
+
+  const handleAddNote = async (itemId) => {
+    const msg = (newNote[itemId] || '').trim(); if (!msg) return
+    await supabase.from('notes').insert({ item_type: itemType, item_id: itemId, user_name: user.name, company: user.company, message: msg })
+    setNewNote(prev => ({ ...prev, [itemId]: '' })); onNotesUpdate()
+  }
+  const handleDeleteNote = async (noteId) => { if (!isAdmin(user)) return; await supabase.from('notes').delete().eq('id', noteId); onNotesUpdate() }
+
+  const handleAddLevel = async (groupName) => {
+    const label = (addingLabel[groupName] || '').trim(); if (!label) return
+    const groupItems = items.filter(i => i[groupField] === groupName)
+    const maxNum = groupItems.length > 0 ? Math.max(...groupItems.map(i => i.number)) : 0
+    await supabase.from(tableName).insert({ [groupField]: groupName, number: maxNum + 1, label })
+    await supabase.from('activity_log').insert({ user_name: user.name, company: user.company, action: 'Added level', details: `${groupName} - added "${label}"`, device_info: navigator.userAgent?.substring(0, 100) || '' })
+    setAddingLabel(prev => ({ ...prev, [groupName]: '' })); onUpdate()
+  }
+
+  const handleRemoveLevel = async (item) => {
+    if (!confirm(`Remove ${item[groupField]} - ${labelFn(item)}?`)) return
+    await supabase.from(tableName).delete().eq('id', item.id)
+    await supabase.from('activity_log').insert({ user_name: user.name, company: user.company, action: 'Removed level', details: `${item[groupField]} - removed "${labelFn(item)}"`, device_info: navigator.userAgent?.substring(0, 100) || '' })
+    onUpdate()
+  }
+
+  const dtInputStyle = (allowed) => ({ padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, cursor: allowed ? 'pointer' : 'not-allowed', colorScheme: B.colorScheme })
+
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+      {/* Print header */}
+      <div className="print-only" style={{ display: 'none', marginBottom: 16 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#000' }}>Moxy Hotel — {tableName === 'lift_shafts' ? 'Lift Shafts' : 'Loading Bays'}</h1>
+        <p style={{ fontSize: 12, color: '#666', margin: '4px 0 0 0' }}>City Scaffold Ltd — Printed {new Date().toLocaleString('en-NZ')}</p>
+      </div>
+
+      <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+        <span style={{ color: B.text, fontWeight: 700, fontSize: 16 }}>{tableName === 'lift_shafts' ? 'Lift Shafts' : 'Loading Bays'}</span>
+        <span style={{ color: B.textMuted, fontSize: 12 }}>({items.length} items)</span>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => window.print()} style={{ padding: '6px 14px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📄 Export PDF</button>
+      </div>
+
+      {groups.map(groupName => {
+        const groupItems = items.filter(i => i[groupField] === groupName).sort((a, b) => a.number - b.number)
+        return (
+          <div key={groupName} style={{ marginBottom: 30 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ color: B.primary, fontWeight: 700, fontSize: 15, borderBottom: `2px solid ${B.primary}`, paddingBottom: 4 }}>{groupName}</span>
+              <span style={{ color: B.textMuted, fontSize: 11 }}>({groupItems.length} levels)</span>
+            </div>
+
+            {/* Desktop table */}
+            <table className="no-print desktop-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
+                  {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY', 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
+                    <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {groupItems.map(l => (
+                  <tr key={l.id} style={{ borderBottom: `1px solid ${B.cardBorder}` }}>
+                    <td style={{ padding: '6px', textAlign: 'center' }}>
+                      <span style={{ display: 'inline-flex', width: 28, height: 28, borderRadius: '50%', background: getStatusColor(l, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>{l.number}</span>
+                    </td>
+                    <td style={{ padding: '6px', color: B.text, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{labelFn(l)}</td>
+                    {/* Shore sched + ref */}
+                    <td style={{ padding: '4px' }}><input type="date" defaultValue={l.shore_scheduled ? toLocalInput(l.shore_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'shore', e.target.value)} disabled={!isAdmin(user)} style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" defaultValue={l.shore_ref || ''} onBlur={(e) => handleRef(l, 'shore', e.target.value)} disabled={!isAdmin(user)} placeholder="Ref" style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, width: 80 }} /></td>
+                    {/* Shore */}
+                    {(() => { const field = 'shore'; const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}`; return [
+                      <td key={`${l.id}-shore-cb`} style={{ padding: '4px', textAlign: 'center' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        <input type="checkbox" checked={!!l.shore_complete} onChange={() => handleToggle(l, 'shore')} disabled={!allowed} style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: B.blue, opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, 'shore', e)} style={{ display: 'none' }} />
+                        {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>}
+                        {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field: 'shore', number: l.number, group: l[groupField] })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 8, fontWeight: 700, padding: '1px 4px', cursor: 'pointer' }}>{fieldPhotos.length}</button>}
+                      </div></td>,
+                      <td key={`${l.id}-shore-date`} style={{ padding: '4px' }}><input type="datetime-local" defaultValue={toLocalInput(l.shore_date)} onBlur={(e) => handleDate(l, 'shore', e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} /></td>,
+                      <td key={`${l.id}-shore-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l.shore_by ? l.shore_by.split(' (')[0] : '-'}</td>,
+                    ] })()}
+                    {/* Steel sched + ref */}
+                    <td style={{ padding: '4px' }}><input type="date" defaultValue={l.steel_scheduled ? toLocalInput(l.steel_scheduled).split('T')[0] : ''} onBlur={(e) => handleSchedDate(l, 'steel', e.target.value)} disabled={!isAdmin(user)} style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, colorScheme: B.colorScheme, width: 100 }} /></td>
+                    <td style={{ padding: '4px' }}><input type="text" defaultValue={l.steel_ref || ''} onBlur={(e) => handleRef(l, 'steel', e.target.value)} disabled={!isAdmin(user)} placeholder="Ref" style={{ padding: '2px 3px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 10, outline: 'none', boxSizing: 'border-box', opacity: isAdmin(user) ? 1 : 0.5, width: 80 }} /></td>
+                    {/* Steel + Pour */}
+                    {['steel', 'pour'].map(field => { const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}`; return [
+                      <td key={`${l.id}-${field}-cb`} style={{ padding: '4px', textAlign: 'center' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed} style={{ width: 18, height: 18, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: field === 'steel' ? B.yellow : B.green, opacity: allowed ? 1 : 0.4 }} />
+                        <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
+                        {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: 0, opacity: 0.7 }} title="Add photo">📷</button>}
+                        {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number, group: l[groupField] })} style={{ background: B.primary, color: '#fff', border: 'none', borderRadius: 10, fontSize: 8, fontWeight: 700, padding: '1px 4px', cursor: 'pointer' }}>{fieldPhotos.length}</button>}
+                      </div></td>,
+                      <td key={`${l.id}-${field}-date`} style={{ padding: '4px' }}><input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed} style={dtInputStyle(allowed)} /></td>,
+                      <td key={`${l.id}-${field}-by`} style={{ padding: '4px', color: B.textMuted, fontSize: 10, whiteSpace: 'nowrap' }}>{l[`${field}_by`] ? l[`${field}_by`].split(' (')[0] : '-'}</td>,
+                    ] })}
+                    {/* Notes */}
+                    <td style={{ padding: '6px', minWidth: 220, verticalAlign: 'top' }}>
+                      {getItemNotes(l.id).map(n => (
+                        <div key={n.id} style={{ marginBottom: 4, fontSize: 11, lineHeight: 1.4, display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+                          <span style={{ color: COMPANY_COLORS[n.company] || B.textMuted, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{n.user_name}:</span>
+                          <span style={{ color: B.text, flex: 1 }}>{n.message}</span>
+                          {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: '0 2px', flexShrink: 0, opacity: 0.6 }} title="Delete note">✕</button>}
+                        </div>
+                      ))}
+                      {!isGhost(user) && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: getItemNotes(l.id).length > 0 ? 4 : 0 }}>
+                        <input value={newNote[l.id] || ''} onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }} placeholder="Add note..." style={{ flex: 1, padding: '3px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }} />
+                        <button onClick={() => handleAddNote(l.id)} style={{ padding: '3px 8px', background: B.primary, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Save</button>
+                      </div>
+                      )}
+                    </td>
+                    {/* Remove button */}
+                    {allowAddRemove && isAdmin(user) && (
+                      <td style={{ padding: '4px', textAlign: 'center' }}>
+                        <button onClick={() => handleRemoveLevel(l)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 12, padding: '2px 4px', opacity: 0.7 }} title="Remove level">✕</button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Mobile cards */}
+            <div className="no-print mobile-cards" style={{ display: 'none' }}>
+              {groupItems.map(l => (
+                <div key={l.id} style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: '50%', background: getStatusColor(l, B), color: '#fff', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>{l.number}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: B.text, fontWeight: 700, fontSize: 14 }}>{labelFn(l)}</div>
+                      <div style={{ color: B.textMuted, fontSize: 11 }}>{getStatusText(l)}</div>
+                    </div>
+                    {allowAddRemove && isAdmin(user) && (
+                      <button onClick={() => handleRemoveLevel(l)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 14, padding: '2px 6px' }} title="Remove">✕</button>
+                    )}
+                  </div>
+                  {['shore', 'steel', 'pour'].map(field => {
+                    const allowed = canEdit(user, field); const fieldPhotos = getItemPhotos(l.id, field); const refKey = `${l.id}-${field}-m`
+                    const color = field === 'shore' ? B.blue : field === 'steel' ? B.yellow : B.green
+                    return (
+                      <div key={field} style={{ padding: '8px 0', borderTop: `1px solid ${B.cardBorder}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 44, fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', flexShrink: 0 }}>{field}</span>
+                          <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed} style={{ width: 22, height: 22, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: color, opacity: allowed ? 1 : 0.4, flexShrink: 0 }} />
+                          <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
+                          {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}>📷</button>}
+                          {fieldPhotos.length > 0 && <button onClick={() => setViewingPhotos({ itemId: l.id, field, number: l.number, group: l[groupField] })} style={{ background: color, color: '#fff', border: 'none', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '2px 6px', cursor: 'pointer', flexShrink: 0 }}>{fieldPhotos.length}</button>}
+                          {l[`${field}_by`] && <span style={{ fontSize: 9, color: B.textMuted, marginLeft: 'auto', flexShrink: 0 }}>{l[`${field}_by`].split(' (')[0]}</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, paddingLeft: 52 }}>
+                          <span style={{ fontSize: 10, color: B.textMuted, flexShrink: 0 }}>Date/Time:</span>
+                          <input type="datetime-local" defaultValue={toLocalInput(l[`${field}_date`])} onBlur={(e) => handleDate(l, field, e.target.value)} disabled={!allowed} style={{ flex: 1, padding: '4px 6px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 4, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', opacity: allowed ? 1 : 0.4, colorScheme: B.colorScheme }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {getItemNotes(l.id).length > 0 && (
+                    <div style={{ borderTop: `1px solid ${B.cardBorder}`, paddingTop: 6, marginTop: 4 }}>
+                      {getItemNotes(l.id).map(n => (
+                        <div key={n.id} style={{ marginBottom: 3, fontSize: 11, display: 'flex', gap: 4 }}>
+                          <span style={{ color: COMPANY_COLORS[n.company] || B.textMuted, fontWeight: 700, flexShrink: 0 }}>{n.user_name}:</span>
+                          <span style={{ color: B.text, flex: 1 }}>{n.message}</span>
+                          {isAdmin(user) && <button onClick={() => handleDeleteNote(n.id)} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 10, padding: 0, flexShrink: 0 }}>✕</button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!isGhost(user) && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                    <input value={newNote[l.id] || ''} onChange={(e) => setNewNote(prev => ({ ...prev, [l.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') handleAddNote(l.id) }} placeholder="Add note..." style={{ flex: 1, padding: '6px 8px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                    <button onClick={() => handleAddNote(l.id)} style={{ padding: '6px 12px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                  </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Admin add level */}
+            {allowAddRemove && isAdmin(user) && (
+              <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                <input value={addingLabel[groupName] || ''} onChange={(e) => setAddingLabel(prev => ({ ...prev, [groupName]: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') handleAddLevel(groupName) }} placeholder="New level label (e.g. Level 13)" style={{ padding: '6px 10px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 12, outline: 'none', boxSizing: 'border-box', width: 200 }} />
+                <button onClick={() => handleAddLevel(groupName)} style={{ padding: '6px 14px', background: B.green, color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Add Level</button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Print table */}
+      <table className="print-table print-only" style={{ display: 'none' }}>
+        <thead>
+          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>Shore ✓</th><th>Shore Date</th><th>Shore By</th><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          {items.sort((a, b) => a[groupField].localeCompare(b[groupField]) || a.number - b.number).map(l => (
+            <tr key={l.id}>
+              <td>{l[groupField]}</td>
+              <td style={{ fontWeight: 700, textAlign: 'center' }}>{l.number}</td>
+              <td>{labelFn(l)}</td>
+              <td><span className="print-status" style={{ background: l.pour_complete ? '#22C55E' : l.steel_complete ? '#EAB308' : l.shore_complete ? '#4A9AB5' : '#ef4444' }}></span>{getStatusText(l)}</td>
+              <td style={{ textAlign: 'center' }}>{l.shore_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.shore_date)}</td>
+              <td>{l.shore_by || '-'}</td>
+              <td style={{ textAlign: 'center' }}>{l.steel_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.steel_date)}</td>
+              <td>{l.steel_by || '-'}</td>
+              <td style={{ textAlign: 'center' }}>{l.pour_complete ? '✅' : '—'}</td>
+              <td>{formatNZDate(l.pour_date)}</td>
+              <td>{l.pour_by || '-'}</td>
+              <td>{getItemNotes(l.id).map(n => `${n.user_name}: ${n.message}`).join(' | ') || ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Photo viewer modal */}
+      {viewingPhotos && (() => {
+        const vp = viewingPhotos; const vpPhotos = getItemPhotos(vp.itemId, vp.field)
+        return (
+          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewingPhotos(null)}>
+            <div style={{ background: B.card, borderRadius: 12, padding: 20, maxWidth: 700, maxHeight: '85vh', overflow: 'auto', width: '90%' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ color: B.text, fontWeight: 700, fontSize: 16 }}>{vp.group} #{vp.number} — {vp.field} photos</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setViewingPhotos(null)} style={{ background: 'none', border: 'none', color: B.textMuted, fontSize: 22, cursor: 'pointer' }}>✕</button>
+              </div>
+              {vpPhotos.length === 0 && <p style={{ color: B.textMuted, fontSize: 13 }}>No photos yet</p>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                {vpPhotos.map(p => (
+                  <div key={p.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: `1px solid ${B.cardBorder}` }}>
+                    <a href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt="" style={{ width: '100%', display: 'block', cursor: 'pointer' }} /></a>
+                    <div style={{ padding: '6px 8px', fontSize: 10, color: B.textMuted }}>{p.uploaded_by} — {formatNZDate(p.created_at)}</div>
+                    {isAdmin(user) && <button onClick={() => handleDeletePhoto(p)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220,38,38,0.9)', color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, padding: '2px 6px', cursor: 'pointer' }}>🗑️</button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
 function ActivityView({ logs, theme, onDelete, user }) {
   const B = THEMES[theme]
   const [filter, setFilter] = useState('All')
@@ -1119,6 +1422,8 @@ export default function Home() {
   const [user, setUser] = useState(null)
   const [landings, setLandings] = useState([])
   const [lobbySlabs, setLobbySlabs] = useState([])
+  const [liftShafts, setLiftShafts] = useState([])
+  const [loadingBays, setLoadingBays] = useState([])
   const [logs, setLogs] = useState([])
   const [notes, setNotes] = useState([])
   const [chatMessages, setChatMessages] = useState([])
@@ -1142,6 +1447,8 @@ export default function Home() {
 
   const loadLandings = async () => { const { data } = await supabase.from('landings').select('*').order('number'); if (data) setLandings(data) }
   const loadLobbySlabs = async () => { const { data } = await supabase.from('lobby_slabs').select('*').order('number'); if (data) setLobbySlabs(data) }
+  const loadLiftShafts = async () => { const { data } = await supabase.from('lift_shafts').select('*').order('number'); if (data) setLiftShafts(data) }
+  const loadLoadingBays = async () => { const { data } = await supabase.from('loading_bays').select('*').order('number'); if (data) setLoadingBays(data) }
   const loadLogs = async () => { const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200); if (data) setLogs(data) }
   const loadNotes = async () => { const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: true }); if (data) setNotes(data) }
   const loadChat = async () => { const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }); if (data) setChatMessages(data) }
@@ -1150,14 +1457,16 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return
-    loadLandings(); loadLobbySlabs(); loadLogs(); loadNotes(); loadChat(); loadUsers(); loadPhotos()
+    loadLandings(); loadLobbySlabs(); loadLiftShafts(); loadLoadingBays(); loadLogs(); loadNotes(); loadChat(); loadUsers(); loadPhotos()
     const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
     const lobbySub = supabase.channel('lobby-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_slabs' }, () => loadLobbySlabs()).subscribe()
+    const liftSub = supabase.channel('lift-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lift_shafts' }, () => loadLiftShafts()).subscribe()
+    const baySub = supabase.channel('bay-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'loading_bays' }, () => loadLoadingBays()).subscribe()
     const activitySub = supabase.channel('activity-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, () => loadLogs()).subscribe()
     const notesSub = supabase.channel('notes-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, () => loadNotes()).subscribe()
     const chatSub = supabase.channel('chat-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => loadChat()).subscribe()
     const photosSub = supabase.channel('photos-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, () => loadPhotos()).subscribe()
-    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub); supabase.removeChannel(photosSub) }
+    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(liftSub); supabase.removeChannel(baySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub); supabase.removeChannel(photosSub) }
   }, [user])
 
   const handleLogin = (userData) => { setUser(userData); sessionStorage.setItem('moxy_user', JSON.stringify(userData)) }
@@ -1167,11 +1476,13 @@ export default function Home() {
 
   const lobbyLabelFn = (slab) => slab.label || `Slab ${slab.number}`
   const landingLabelFn = (landing) => getLevelLabel(landing.number)
+  const liftLabelFn = (item) => item.label || `Lift ${item.number}`
+  const bayLabelFn = (item) => item.label || `Level ${item.number}`
 
   return (
     <div style={{ height: '100vh', background: B.bg, color: B.text, display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', overflow: 'hidden' }}>
       <style dangerouslySetInnerHTML={{ __html: getGlobalStyles(theme) }} />
-      <Header user={user} landings={landings} lobbySlabs={lobbySlabs} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} theme={theme} setTheme={setTheme} tracker={tracker} setTracker={setTracker} />
+      <Header user={user} landings={landings} lobbySlabs={lobbySlabs} liftShafts={liftShafts} loadingBays={loadingBays} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} theme={theme} setTheme={setTheme} tracker={tracker} setTracker={setTracker} />
 
       {/* STAIR LANDINGS */}
       {tracker === 'landings' && activeTab === 'Diagram' && (
@@ -1184,6 +1495,16 @@ export default function Home() {
       {/* LOBBY SLABS */}
       {tracker === 'lobby' && activeTab === 'Table' && (
         <GenericTableView items={lobbySlabs} user={user} tableName="lobby_slabs" labelFn={lobbyLabelFn} theme={theme} onUpdate={loadLobbySlabs} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} />
+      )}
+
+      {/* LIFT SHAFTS */}
+      {tracker === 'lifts' && activeTab === 'Table' && (
+        <GroupedTableView items={liftShafts} user={user} tableName="lift_shafts" groupField="shaft_name" labelFn={liftLabelFn} theme={theme} onUpdate={loadLiftShafts} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} allowAddRemove={true} />
+      )}
+
+      {/* LOADING BAYS */}
+      {tracker === 'bays' && activeTab === 'Table' && (
+        <GroupedTableView items={loadingBays} user={user} tableName="loading_bays" groupField="bay_name" labelFn={bayLabelFn} theme={theme} onUpdate={loadLoadingBays} notes={notes} onNotesUpdate={loadNotes} photos={photos} onPhotosUpdate={loadPhotos} allowAddRemove={false} />
       )}
 
       {/* ACTIVITY (shared) */}
