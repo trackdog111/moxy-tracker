@@ -919,7 +919,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                   {allowAddRemove && isAdmin(user) && <th></th>}
                 </tr>
                 <tr style={{ borderBottom: `2px solid ${B.cardBorder}` }}>
-                  {['#', 'LEVEL', 'SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME', 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', ...(!scaffoldOnly ? ['STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY'] : []), 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
+                  {['#', 'LEVEL', ...(scaffoldOnly ? ['ERECT SCHED', 'ERECT REF', 'ERECT', 'ERECT DATE/TIME'] : ['SHORE SCHED', 'SHORE REF', 'SHORE', 'SHORE DATE/TIME']), 'BY', 'DISMANTLE', 'DISMANTLE DATE/TIME', 'BY', ...(!scaffoldOnly ? ['STEEL SCHED', 'STEEL REF', 'STEEL', 'STEEL DATE/TIME', 'BY', 'POUR', 'POUR DATE/TIME', 'BY'] : []), 'NOTES', ...(allowAddRemove && isAdmin(user) ? [''] : [])].map((h, i) => (
                     <th key={`${h}-${i}`} style={{ color: B.textMuted, fontSize: 10, fontWeight: 600, padding: '10px 4px', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -1017,7 +1017,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
                     return (
                       <div key={field} style={{ padding: '8px 0', borderTop: `1px solid ${B.cardBorder}` }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ width: 44, fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', flexShrink: 0 }}>{field}</span>
+                          <span style={{ width: 44, fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', flexShrink: 0 }}>{scaffoldOnly && field === 'shore' ? 'erect' : field}</span>
                           <input type="checkbox" checked={!!l[`${field}_complete`]} onChange={() => handleToggle(l, field)} disabled={!allowed} style={{ width: 22, height: 22, cursor: allowed ? 'pointer' : 'not-allowed', accentColor: color, opacity: allowed ? 1 : 0.4, flexShrink: 0 }} />
                           <input type="file" accept="image/*" capture="environment" ref={el => photoInputRefs.current[refKey] = el} onChange={(e) => handlePhotoUpload(l, field, e)} style={{ display: 'none' }} />
                           {allowed && <button onClick={() => photoInputRefs.current[refKey]?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}>📷</button>}
@@ -1066,7 +1066,7 @@ function GroupedTableView({ items, user, tableName, groupField, labelFn, theme, 
       {/* Print table */}
       <table className="print-table print-only" style={{ display: 'none' }}>
         <thead>
-          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>Shore ✓</th><th>Shore Date</th><th>Shore By</th><th>Dismantle ✓</th><th>Dismantle Date</th><th>Dismantle By</th>{!scaffoldOnly && <><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th></>}<th>Notes</th></tr>
+          <tr><th>Group</th><th>#</th><th>Level</th><th>Status</th><th>{scaffoldOnly ? 'Erect' : 'Shore'} ✓</th><th>{scaffoldOnly ? 'Erect' : 'Shore'} Date</th><th>{scaffoldOnly ? 'Erect' : 'Shore'} By</th><th>Dismantle ✓</th><th>Dismantle Date</th><th>Dismantle By</th>{!scaffoldOnly && <><th>Steel ✓</th><th>Steel Date</th><th>Steel By</th><th>Pour ✓</th><th>Pour Date</th><th>Pour By</th></>}<th>Notes</th></tr>
         </thead>
         <tbody>
           {items.sort((a, b) => a[groupField].localeCompare(b[groupField]) || a.number - b.number).map(l => (
