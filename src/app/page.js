@@ -219,8 +219,8 @@ function Header({ user, landings, lobbySlabs, liftShafts, loadingBays, activeTab
   const poured = items.filter(l => l.pour_complete).length
   const notStarted = items.length - shored - steel - poured
   const tabs = tracker === 'landings'
-    ? ((isAdmin(user) || isGhost(user)) ? ['Diagram', 'Table', 'Activity', 'Chat'] : ['Diagram', 'Table', 'Chat'])
-    : ((isAdmin(user) || isGhost(user)) ? ['Table', 'Activity', 'Chat'] : ['Table', 'Chat'])
+    ? ((isAdmin(user) || isGhost(user)) ? ['Diagram', 'Table', 'Activity', 'Chat', 'Documents'] : ['Diagram', 'Table', 'Chat', 'Documents'])
+    : ((isAdmin(user) || isGhost(user)) ? ['Table', 'Activity', 'Chat', 'Documents'] : ['Table', 'Chat', 'Documents'])
 
   const trackerButtons = [
     { key: 'landings', label: 'Landings', defaultTab: 'Diagram' },
@@ -1478,6 +1478,155 @@ function ChatView({ messages, user, theme, onSend, registeredUsers }) {
   )
 }
 
+// ─── DOCUMENTS VIEW ──────────────────────────────────────────────
+function DocumentsView({ documents, user, theme, onUpdate }) {
+  const B = THEMES[theme]
+  const CATEGORIES = ['Emails', 'WPM', 'Plans']
+  const [activeCategory, setActiveCategory] = useState('Emails')
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newContent, setNewContent] = useState('')
+  const [newCategory, setNewCategory] = useState('Emails')
+  const [uploading, setUploading] = useState(false)
+  const [expandedDoc, setExpandedDoc] = useState(null)
+  const fileInputRef = useRef(null)
+
+  const filteredDocs = documents.filter(d => d.category === activeCategory)
+
+  const handleAddDocument = async () => {
+    if (!newTitle.trim()) return
+    await supabase.from('documents').insert({
+      category: newCategory,
+      title: newTitle.trim(),
+      content: newContent.trim() || null,
+      uploaded_by: `${user.name} (${user.company})`
+    })
+    setNewTitle(''); setNewContent(''); setShowAddForm(false); onUpdate()
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const fileName = `doc_${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('photos').upload(fileName, file, { upsert: false })
+    if (error) { alert('Upload failed: ' + error.message); setUploading(false); return }
+    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName)
+    if (urlData?.publicUrl) {
+      await supabase.from('documents').insert({
+        category: newCategory,
+        title: newTitle.trim() || file.name,
+        file_name: fileName,
+        file_url: urlData.publicUrl,
+        content: newContent.trim() || null,
+        uploaded_by: `${user.name} (${user.company})`
+      })
+      setNewTitle(''); setNewContent(''); setShowAddForm(false); onUpdate()
+    }
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  const handleDelete = async (doc) => {
+    if (!confirm(`Delete "${doc.title}"?`)) return
+    if (doc.file_name) await supabase.storage.from('photos').remove([doc.file_name])
+    await supabase.from('documents').delete().eq('id', doc.id)
+    onUpdate()
+  }
+
+  const catColors = { 'Emails': '#4A9AB5', 'WPM': '#8B5CF6', 'Plans': '#F97316' }
+
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        {/* Category tabs */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          {CATEGORIES.map(cat => (
+            <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+              padding: '8px 18px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: activeCategory === cat ? catColors[cat] : B.card,
+              color: activeCategory === cat ? '#fff' : B.textMuted,
+              border: `1px solid ${activeCategory === cat ? catColors[cat] : B.cardBorder}`
+            }}>
+              {cat}
+              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.8 }}>({documents.filter(d => d.category === cat).length})</span>
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          {isAdmin(user) && !showAddForm && (
+            <button onClick={() => { setShowAddForm(true); setNewCategory(activeCategory) }} style={{ padding: '8px 16px', background: B.primary, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Add Document</button>
+          )}
+        </div>
+
+        {/* Add form */}
+        {showAddForm && isAdmin(user) && (
+          <div style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 12, padding: 16, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+              <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ padding: '8px 12px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 13 }}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Title (e.g. WPM #12 - 10 Feb 2026)" style={{ flex: 1, minWidth: 200, padding: '8px 12px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 13, outline: 'none' }} />
+            </div>
+            <textarea value={newContent} onChange={(e) => setNewContent(e.target.value)} placeholder="Paste email content or meeting notes here..." rows={10} style={{ width: '100%', padding: '10px 12px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.text, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <button onClick={handleAddDocument} disabled={!newTitle.trim()} style={{ padding: '8px 20px', background: B.primary, color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: newTitle.trim() ? 1 : 0.5 }}>Save</button>
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ padding: '8px 20px', background: B.card, color: B.text, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{uploading ? 'Uploading...' : '📎 Attach File'}</button>
+              <button onClick={() => { setShowAddForm(false); setNewTitle(''); setNewContent('') }} style={{ padding: '8px 20px', background: 'transparent', color: B.textMuted, border: `1px solid ${B.cardBorder}`, borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Document list */}
+        {filteredDocs.length === 0 && !showAddForm && (
+          <div style={{ textAlign: 'center', padding: 40, color: B.textMuted, fontSize: 14 }}>
+            No {activeCategory.toLowerCase()} uploaded yet
+          </div>
+        )}
+
+        {filteredDocs.map(doc => (
+          <div key={doc.id} style={{ background: B.card, border: `1px solid ${B.cardBorder}`, borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
+            {/* Header bar */}
+            <div onClick={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', borderLeft: `4px solid ${catColors[doc.category]}` }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: B.text, fontWeight: 700, fontSize: 14 }}>{doc.title}</div>
+                <div style={{ color: B.textMuted, fontSize: 11, marginTop: 2 }}>
+                  {doc.uploaded_by?.split(' (')[0]} — {new Date(doc.created_at).toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {doc.file_url && ' — 📎 File attached'}
+                </div>
+              </div>
+              <span style={{ color: B.textMuted, fontSize: 16, transform: expandedDoc === doc.id ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>▼</span>
+              {isAdmin(user) && (
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(doc) }} style={{ background: 'none', border: 'none', color: B.red, cursor: 'pointer', fontSize: 14, padding: '2px 6px', opacity: 0.6 }} title="Delete">✕</button>
+              )}
+            </div>
+            {/* Expanded content */}
+            {expandedDoc === doc.id && (
+              <div style={{ padding: '0 16px 16px 20px', borderLeft: `4px solid ${catColors[doc.category]}` }}>
+                {doc.content && (
+                  <div style={{ color: B.text, fontSize: 13, lineHeight: 1.8, whiteSpace: 'pre-wrap', padding: '12px 0', borderTop: `1px solid ${B.cardBorder}` }}>{doc.content}</div>
+                )}
+                {doc.file_url && (
+                  <div style={{ paddingTop: doc.content ? 0 : 12, borderTop: doc.content ? 'none' : `1px solid ${B.cardBorder}` }}>
+                    {doc.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer"><img src={doc.file_url} alt={doc.title} style={{ maxWidth: '100%', maxHeight: 500, borderRadius: 8, border: `1px solid ${B.cardBorder}` }} /></a>
+                    ) : (
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: B.inputBg, border: `1px solid ${B.cardBorder}`, borderRadius: 6, color: B.primary, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📄 Open file — {doc.file_name || 'Download'}</a>
+                    )}
+                  </div>
+                )}
+                {!doc.content && !doc.file_url && (
+                  <div style={{ color: B.textMuted, fontSize: 12, fontStyle: 'italic', paddingTop: 12, borderTop: `1px solid ${B.cardBorder}` }}>No content</div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── MAIN APP ───────────────────────────────────────────────────
 export default function Home() {
   const [user, setUser] = useState(null)
@@ -1490,6 +1639,7 @@ export default function Home() {
   const [chatMessages, setChatMessages] = useState([])
   const [registeredUsers, setRegisteredUsers] = useState([])
   const [photos, setPhotos] = useState([])
+  const [documents, setDocuments] = useState([])
   const [activeTab, setActiveTab] = useState('Diagram')
   const [drawingUrl, setDrawingUrl] = useState('')
   const [theme, setTheme] = useState('dark')
@@ -1515,10 +1665,11 @@ export default function Home() {
   const loadChat = async () => { const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }); if (data) setChatMessages(data) }
   const loadUsers = async () => { const { data } = await supabase.from('users').select('name, company, role').order('name'); if (data) setRegisteredUsers(data) }
   const loadPhotos = async () => { const { data } = await supabase.from('photos').select('*').order('created_at', { ascending: true }); if (data) setPhotos(data) }
+  const loadDocuments = async () => { const { data } = await supabase.from('documents').select('*').order('created_at', { ascending: false }); if (data) setDocuments(data) }
 
   useEffect(() => {
     if (!user) return
-    loadLandings(); loadLobbySlabs(); loadLiftShafts(); loadLoadingBays(); loadLogs(); loadNotes(); loadChat(); loadUsers(); loadPhotos()
+    loadLandings(); loadLobbySlabs(); loadLiftShafts(); loadLoadingBays(); loadLogs(); loadNotes(); loadChat(); loadUsers(); loadPhotos(); loadDocuments()
     const landingSub = supabase.channel('landings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'landings' }, () => loadLandings()).subscribe()
     const lobbySub = supabase.channel('lobby-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lobby_slabs' }, () => loadLobbySlabs()).subscribe()
     const liftSub = supabase.channel('lift-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'lift_shafts' }, () => loadLiftShafts()).subscribe()
@@ -1527,7 +1678,8 @@ export default function Home() {
     const notesSub = supabase.channel('notes-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, () => loadNotes()).subscribe()
     const chatSub = supabase.channel('chat-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => loadChat()).subscribe()
     const photosSub = supabase.channel('photos-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, () => loadPhotos()).subscribe()
-    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(liftSub); supabase.removeChannel(baySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub); supabase.removeChannel(photosSub) }
+    const docsSub = supabase.channel('docs-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => loadDocuments()).subscribe()
+    return () => { supabase.removeChannel(landingSub); supabase.removeChannel(lobbySub); supabase.removeChannel(liftSub); supabase.removeChannel(baySub); supabase.removeChannel(activitySub); supabase.removeChannel(notesSub); supabase.removeChannel(chatSub); supabase.removeChannel(photosSub); supabase.removeChannel(docsSub) }
   }, [user])
 
   const handleLogin = (userData) => { setUser(userData); sessionStorage.setItem('moxy_user', JSON.stringify(userData)) }
@@ -1576,6 +1728,11 @@ export default function Home() {
       {/* CHAT */}
       {activeTab === 'Chat' && (
         <ChatView messages={chatMessages} user={user} theme={theme} onSend={loadChat} registeredUsers={registeredUsers} />
+      )}
+
+      {/* DOCUMENTS */}
+      {activeTab === 'Documents' && (
+        <DocumentsView documents={documents} user={user} theme={theme} onUpdate={loadDocuments} />
       )}
     </div>
   )
